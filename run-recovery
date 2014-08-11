@@ -1,0 +1,6 @@
+#!/bin/sh
+#
+# Copyright (C) 2014 Dream Property GmbH
+#
+
+echo "This script does nothing."
