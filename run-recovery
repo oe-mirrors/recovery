@@ -3,4 +3,58 @@
 # Copyright (C) 2014 Dream Property GmbH
 #
 
-echo "This script does nothing."
+set -e
+
+URI=http://dreamboxupdate.com/download/recovery/dm7080/release
+
+cleanup()
+{
+	[ -z "$TEMP" ] || rm -rf "$TEMP"
+}
+
+abort()
+{
+	echo "$@"
+	exit 1
+}
+
+fetch()
+{
+	wget -q $URI/$1 -O $1 || abort "Failed to download '$1'!"
+}
+
+verify()
+{
+	gpgv -q --ignore-time-conflict $@ || abort 'Failed to verify signature'
+}
+
+run()
+{
+	chmod 755 $1 || abort "Failed to set execute permissions"
+	$1 || abort "Failed to execute $1"
+}
+
+TEMP=`mktemp -d` || abort 'Failed to create working directory'
+trap cleanup EXIT
+cd $TEMP || abort 'Failed to change working directory'
+export GNUPGHOME=$TEMP
+
+(base64 -d > trustedkeys.gpg || abort 'Failed to write public key') << EOF
+mQENBFPo2oUBCAC6dzqe5azBCkxzj99xNfzwB4L6tHzz83zqD2KUQuuJMhO7Q2g9AHnSNQ0z1+Bz
+oX2gGX90FusBSLiCuZmNdnxlcl7KVfBe37EpYtQNGCZKlWeruCAUdJGKIyPJXDvkXCy3dj6z1ho8
+p1r3uazEbUbJyLvwjzcg0Ua1qxFjLoq/h15yDgd0NCkMStL6gwKdmReLRfE/tn0K53CVQzIeEFyn
+EW3N0tu2deiYkanHy/MM9IOIv3oQmoEWNaVsDf+gG7nUPj0QE66GOYlBugR5vNi3BorOctarQp/8
+Dh56muiqomwwewJubzsvjUjpiYXdO/3RN2gOej2+5hUCiYmvOahfABEBAAG0LkRyZWFtYm94IERN
+NzA4MCBSZWNvdmVyeSA8cmVjb3ZlcnlAZG03MDgwLmNvbT6JATgEEwECACIFAlPo2oUCGwMGCwkI
+BwMCBhUIAgkKCwQWAgMBAh4BAheAAAoJEBWob67Wz1bnUGYH/0zmTS7Gtvv97oHHnz3JSkLybDRj
+Jx/wH+vpzyCRl8rC7TlHs5GBfjoJ1Hjo4DsZqElTb8g+kg5WGzMBUUuwabRhZuf2CL7/IPKP+LWH
+t2ByZX3OgS1Q+HDLob5wlKllD9y/wwekuwS/8cgdnDH9URHCBqIt5gWQzLU1pvmQrKPXM1aMsLQj
+16vbktXNkREF/cNhWfQFQs2dOwmzNEDeuE32I6h7PYl1bFP0hCOmbkcTuibnC+tsWOJMKF1iZ8bq
+xDND9BYTwGtD2SVrddu3i4kBz6hka01ZnfSUZewpu+TrCgaD6oENfarPiC9VYfKEFi10RIPIxwRX
+s1tBOOQNKpywAgAD
+EOF
+
+fetch recovery
+fetch recovery.sig
+verify recovery.sig recovery
+run ./recovery
