@@ -5,27 +5,124 @@
 
 set -e
 
-URI=http://dreamboxupdate.com/download/recovery/dm7080/release
+BASE_URI=http://dreamboxupdate.com/download/recovery/dm7080/release
+FILENAME=recovery
+DEVICE=/dev/mmcblk0
+DATA_PARTITION=${DEVICE}p2
+DATA_MOUNTPOINT=/data
+RECOVERY_CACHE=${DATA_MOUNTPOINT}/.recovery
 
 cleanup()
 {
 	[ -z "$TEMP" ] || rm -rf "$TEMP"
+	unmount ${DATA_MOUNTPOINT}
 }
 
 abort()
 {
-	echo "$@"
+	echo "Fatal: $@"
 	exit 1
+}
+
+warn()
+{
+	echo "Warning: $@"
 }
 
 fetch()
 {
-	wget -q $URI/$1 -O $1 || abort "Failed to download '$1'!"
+	wget -q ${BASE_URI}/${1} -O ${1}
 }
 
 verify()
 {
-	gpgv -q --ignore-time-conflict $@ || abort 'Failed to verify signature'
+	gpgv -q --ignore-time-conflict $@
+}
+
+fetch_signed()
+{
+	fetch ${1}.sig
+
+	if [ -f "${RECOVERY_CACHE}/${1}" -a -f "${RECOVERY_CACHE}/${1}.sig" ]; then
+		if [ ! -f ${1}.sig ] || cmp -s ${1}.sig ${RECOVERY_CACHE}/${1}.sig; then
+			cp ${RECOVERY_CACHE}/${1}.sig ${1}.sig
+			cp ${RECOVERY_CACHE}/${1} ${1}
+		fi
+	fi
+
+	[ -f ${1}.sig ] || abort "Failed to obtain signature '${1}.sig'"
+	[ -f ${1} ] && verify ${1}.sig ${1} || fetch ${1} || abort "Failed to download '${1}'"
+
+	verify ${1}.sig ${1} || abort 'Failed to verify signature'
+}
+
+create_directory()
+{
+	mkdir -p ${1}
+}
+
+is_blockdev()
+{
+	[ -b "${1}" ]
+}
+
+is_directory()
+{
+	[ -d "${1}" ]
+}
+
+is_mountpoint()
+{
+	mountpoint -q ${1}
+}
+
+is_writeable()
+{
+	[ -w "${1}" ]
+}
+
+unmount()
+{
+	if is_mountpoint ${1}; then
+		umount ${1} || mount -o remount,ro ${1}
+	fi
+}
+
+mount_cache()
+{
+	if is_blockdev ${DATA_PARTITION}; then
+		create_directory ${DATA_MOUNTPOINT}
+		if is_directory ${DATA_MOUNTPOINT}; then
+			mount -o ro ${DATA_PARTITION} ${DATA_MOUNTPOINT} || warn "Failed to mount data filesystem"
+		fi
+	fi
+}
+
+cache_changed()
+{
+	is_mountpoint ${DATA_MOUNTPOINT} && ! cmp -s ${RECOVERY_CACHE}/${1}.sig ${1}.sig
+}
+
+remount_cache_rw()
+{
+	is_mountpoint ${DATA_MOUNTPOINT} && \
+		mount -o remount,rw ${DATA_MOUNTPOINT} && is_writeable ${DATA_MOUNTPOINT}
+}
+
+update_cache()
+{
+	if cache_changed ${1} && remount_cache_rw; then
+		create_directory ${RECOVERY_CACHE}
+		if is_directory ${RECOVERY_CACHE}; then
+			cp ${FILENAME} ${RECOVERY_CACHE}/${FILENAME} || true
+			cp ${FILENAME}.sig ${RECOVERY_CACHE}/${FILENAME}.sig || true
+		fi
+	fi
+}
+
+unmount_cache()
+{
+	unmount ${DATA_MOUNTPOINT}
 }
 
 run()
@@ -33,6 +130,8 @@ run()
 	chmod 755 $1 || abort "Failed to set execute permissions"
 	$1 || abort "Failed to execute $1"
 }
+
+umask 077
 
 TEMP=`mktemp -d` || abort 'Failed to create working directory'
 trap cleanup EXIT
@@ -54,7 +153,10 @@ xDND9BYTwGtD2SVrddu3i4kBz6hka01ZnfSUZewpu+TrCgaD6oENfarPiC9VYfKEFi10RIPIxwRX
 s1tBOOQNKpywAgAD
 EOF
 
-fetch recovery
-fetch recovery.sig
-verify recovery.sig recovery
-run ./recovery
+mount_cache
+fetch_signed ${FILENAME}
+
+update_cache ${FILENAME}
+unmount_cache
+
+run ./${FILENAME}
