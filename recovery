@@ -163,6 +163,8 @@ unmount_cache()
 	unmount ${DATA_MOUNTPOINT}
 }
 
+[ -f /etc/initrd-release ] || abort "This script may only run in recovery mode!"
+
 umask 077
 
 TEMP=`mktemp -d` || abort 'Failed to create working directory'
