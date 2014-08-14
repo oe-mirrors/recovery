@@ -29,14 +29,21 @@ warn()
 	echo "Warning: $@"
 }
 
+info()
+{
+	echo "[*] $@"
+}
+
 fetch()
 {
+	info "Downloading ${BASE_URI}/${1}"
 	wget -q ${BASE_URI}/${1} -O ${1}
 }
 
 verify()
 {
-	gpgv -q --ignore-time-conflict $@
+	info "Verifying signature of ${1}"
+	gpgv -q --ignore-time-conflict ${1}.sig ${1}
 }
 
 fetch_signed()
@@ -45,15 +52,16 @@ fetch_signed()
 
 	if [ -f "${RECOVERY_CACHE}/${1}" -a -f "${RECOVERY_CACHE}/${1}.sig" ]; then
 		if [ ! -f ${1}.sig ] || cmp -s ${1}.sig ${RECOVERY_CACHE}/${1}.sig; then
+			info "Copying ${1} from local storage"
 			cp ${RECOVERY_CACHE}/${1}.sig ${1}.sig
 			cp ${RECOVERY_CACHE}/${1} ${1}
 		fi
 	fi
 
 	[ -f ${1}.sig ] || abort "Failed to obtain signature '${1}.sig'"
-	[ -f ${1} ] && verify ${1}.sig ${1} || fetch ${1} || abort "Failed to download '${1}'"
+	[ -f ${1} ] && verify ${1} || fetch ${1} || abort "Failed to download '${1}'"
 
-	verify ${1}.sig ${1} || abort 'Failed to verify signature'
+	verify ${1} || abort 'Failed to verify signature'
 }
 
 create_directory()
@@ -84,6 +92,7 @@ is_writeable()
 unmount()
 {
 	if is_mountpoint ${1}; then
+		info "Unmounting ${1}"
 		umount ${1} || mount -o remount,ro ${1}
 	fi
 }
@@ -93,6 +102,7 @@ mount_cache()
 	if is_blockdev ${DATA_PARTITION}; then
 		create_directory ${DATA_MOUNTPOINT}
 		if is_directory ${DATA_MOUNTPOINT}; then
+			info "Mounting ${DATA_MOUNTPOINT} (ro)"
 			mount -o ro ${DATA_PARTITION} ${DATA_MOUNTPOINT} || warn "Failed to mount data filesystem"
 		fi
 	fi
@@ -105,7 +115,7 @@ cache_changed()
 
 remount_cache_rw()
 {
-	is_mountpoint ${DATA_MOUNTPOINT} && \
+	is_mountpoint ${DATA_MOUNTPOINT} && info "Remounting ${DATA_MOUNTPOINT} (rw)" && \
 		mount -o remount,rw ${DATA_MOUNTPOINT} && is_writeable ${DATA_MOUNTPOINT}
 }
 
@@ -114,6 +124,7 @@ update_cache()
 	if cache_changed ${1} && remount_cache_rw; then
 		create_directory ${RECOVERY_CACHE}
 		if is_directory ${RECOVERY_CACHE}; then
+			info "Updating recovery cache"
 			cp ${FILENAME} ${RECOVERY_CACHE}/${FILENAME} || true
 			cp ${FILENAME}.sig ${RECOVERY_CACHE}/${FILENAME}.sig || true
 		fi
@@ -127,8 +138,9 @@ unmount_cache()
 
 run()
 {
-	chmod 755 $1 || abort "Failed to set execute permissions"
-	$1 || abort "Failed to execute $1"
+	info "Running ${1}"
+	chmod 755 ${1} || abort "Failed to set execute permissions"
+	${1} || abort "Failed to execute ${1}"
 }
 
 umask 077
