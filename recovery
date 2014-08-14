@@ -1,0 +1,209 @@
+#!/bin/sh
+#
+# Copyright (C) 2014 Dream Property GmbH
+#
+
+set -e
+
+BASE_URI=http://dreamboxupdate.com/download/recovery/dm7080/release
+FILENAME=dreambox-image-dm7080.tar.bz2
+DEVICE=/dev/mmcblk0
+ROOT_PARTITION=${DEVICE}p1
+ROOT_MOUNTPOINT=/mnt
+ROOT_NAME=dreambox-rootfs
+DATA_PARTITION=${DEVICE}p2
+DATA_MOUNTPOINT=/data
+DATA_NAME=dreambox-data
+RECOVERY_CACHE=${DATA_MOUNTPOINT}/.recovery
+FILESYSTEM=ext4
+
+cleanup()
+{
+	[ -z "$TEMP" ] || rm -rf "$TEMP"
+	unmount ${DATA_MOUNTPOINT}
+	unmount ${ROOT_MOUNTPOINT}
+}
+
+abort()
+{
+	echo "Fatal: $@"
+	exit 1
+}
+
+warn()
+{
+	echo "Warning: $@"
+}
+
+info()
+{
+	echo "[*] $@"
+}
+
+fetch()
+{
+	info "Downloading ${BASE_URI}/${1}"
+	wget -q ${BASE_URI}/${1} -O ${1}
+}
+
+verify()
+{
+	info "Verifying signature of ${1}"
+	gpgv -q --ignore-time-conflict ${1}.sig ${1}
+}
+
+fetch_signed()
+{
+	fetch ${1}.sig
+
+	if [ -f "${RECOVERY_CACHE}/${1}" -a -f "${RECOVERY_CACHE}/${1}.sig" ]; then
+		if [ ! -f ${1}.sig ] || cmp -s ${1}.sig ${RECOVERY_CACHE}/${1}.sig; then
+			info "Copying ${1} from local storage"
+			cp ${RECOVERY_CACHE}/${1}.sig ${1}.sig
+			cp ${RECOVERY_CACHE}/${1} ${1}
+		fi
+	fi
+
+	[ -f ${1}.sig ] || abort "Failed to obtain signature '${1}.sig'"
+	[ -f ${1} ] && verify ${1} || fetch ${1} || abort "Failed to download '${1}'"
+
+	verify ${1} || abort 'Failed to verify signature'
+}
+
+create_partition_table()
+{
+	info "Creating partition table"
+	parted --script --align=optimal ${1} -- \
+		mklabel gpt \
+		mkpart primary ext2 72MiB 1GiB \
+		mkpart primary ext2 1GiB 100%
+}
+
+create_filesystem()
+{
+	info "Creating ${FILESYSTEM} filesystem '${1}' on ${2}"
+	mkfs.${FILESYSTEM} -L "${1}" ${2}
+}
+
+extract()
+{
+	info "Extracting ${1} to ${2}"
+	tar -xf ${1} -C ${2}
+}
+
+create_directory()
+{
+	mkdir -p ${1}
+}
+
+is_blockdev()
+{
+	[ -b "${1}" ]
+}
+
+is_directory()
+{
+	[ -d "${1}" ]
+}
+
+is_mountpoint()
+{
+	mountpoint -q ${1}
+}
+
+is_writeable()
+{
+	[ -w "${1}" ]
+}
+
+unmount()
+{
+	if is_mountpoint ${1}; then
+		info "Unmounting ${1}"
+		umount ${1} || mount -o remount,ro ${1}
+	fi
+}
+
+mount_cache()
+{
+	if is_blockdev ${DATA_PARTITION}; then
+		create_directory ${DATA_MOUNTPOINT}
+		if is_directory ${DATA_MOUNTPOINT}; then
+			info "Mounting ${DATA_MOUNTPOINT} (ro)"
+			mount -o ro ${DATA_PARTITION} ${DATA_MOUNTPOINT} || warn "Failed to mount data filesystem"
+		fi
+	fi
+}
+
+cache_changed()
+{
+	is_mountpoint ${DATA_MOUNTPOINT} && ! cmp -s ${RECOVERY_CACHE}/${1}.sig ${1}.sig
+}
+
+remount_cache_rw()
+{
+	is_mountpoint ${DATA_MOUNTPOINT} && info "Remounting ${DATA_MOUNTPOINT} (rw)" && \
+		mount -o remount,rw ${DATA_MOUNTPOINT} && is_writeable ${DATA_MOUNTPOINT}
+}
+
+update_cache()
+{
+	if cache_changed ${1} && remount_cache_rw; then
+		create_directory ${RECOVERY_CACHE}
+		if is_directory ${RECOVERY_CACHE}; then
+			info "Updating recovery cache"
+			cp ${FILENAME} ${RECOVERY_CACHE}/${FILENAME} || true
+			cp ${FILENAME}.sig ${RECOVERY_CACHE}/${FILENAME}.sig || true
+		fi
+	fi
+}
+
+unmount_cache()
+{
+	unmount ${DATA_MOUNTPOINT}
+}
+
+umask 077
+
+TEMP=`mktemp -d` || abort 'Failed to create working directory'
+trap cleanup EXIT
+cd $TEMP || abort 'Failed to change working directory'
+export GNUPGHOME=$TEMP
+
+(base64 -d > trustedkeys.gpg || abort 'Failed to write public key') << EOF
+mQENBFPo2oUBCAC6dzqe5azBCkxzj99xNfzwB4L6tHzz83zqD2KUQuuJMhO7Q2g9AHnSNQ0z1+Bz
+oX2gGX90FusBSLiCuZmNdnxlcl7KVfBe37EpYtQNGCZKlWeruCAUdJGKIyPJXDvkXCy3dj6z1ho8
+p1r3uazEbUbJyLvwjzcg0Ua1qxFjLoq/h15yDgd0NCkMStL6gwKdmReLRfE/tn0K53CVQzIeEFyn
+EW3N0tu2deiYkanHy/MM9IOIv3oQmoEWNaVsDf+gG7nUPj0QE66GOYlBugR5vNi3BorOctarQp/8
+Dh56muiqomwwewJubzsvjUjpiYXdO/3RN2gOej2+5hUCiYmvOahfABEBAAG0LkRyZWFtYm94IERN
+NzA4MCBSZWNvdmVyeSA8cmVjb3ZlcnlAZG03MDgwLmNvbT6JATgEEwECACIFAlPo2oUCGwMGCwkI
+BwMCBhUIAgkKCwQWAgMBAh4BAheAAAoJEBWob67Wz1bnUGYH/0zmTS7Gtvv97oHHnz3JSkLybDRj
+Jx/wH+vpzyCRl8rC7TlHs5GBfjoJ1Hjo4DsZqElTb8g+kg5WGzMBUUuwabRhZuf2CL7/IPKP+LWH
+t2ByZX3OgS1Q+HDLob5wlKllD9y/wwekuwS/8cgdnDH9URHCBqIt5gWQzLU1pvmQrKPXM1aMsLQj
+16vbktXNkREF/cNhWfQFQs2dOwmzNEDeuE32I6h7PYl1bFP0hCOmbkcTuibnC+tsWOJMKF1iZ8bq
+xDND9BYTwGtD2SVrddu3i4kBz6hka01ZnfSUZewpu+TrCgaD6oENfarPiC9VYfKEFi10RIPIxwRX
+s1tBOOQNKpywAgAD
+EOF
+
+is_blockdev ${DEVICE} || abort "Target block device ${DEVICE} does not exist"
+
+mount_cache
+fetch_signed ${FILENAME}
+
+if ! is_blockdev ${ROOT_PARTITION} || ! is_blockdev ${DATA_PARTITION}; then
+	create_partition_table ${DEVICE} || abort "Failed to partition disk"
+	create_filesystem ${DATA_NAME} ${DATA_PARTITION} || warn "Failed to create ${FILESYSTEM} filesystem '${DATA_NAME}' on ${DATA_PARTITION}"
+	mount_cache
+fi
+
+create_filesystem ${ROOT_NAME} ${ROOT_PARTITION} || abort "Failed to create ${FILESYSTEM} filesystem '${ROOT_NAME}' on ${ROOT_PARTITION}"
+info "Mounting root filesystem"
+mount ${ROOT_PARTITION} ${ROOT_MOUNTPOINT} || abort "Failed to mount root filesystem"
+extract ${FILENAME} ${ROOT_MOUNTPOINT} || abort "Failed to extract root filesystem"
+unmount ${ROOT_MOUNTPOINT} || warn "Failed to unmount root filesystem"
+
+update_cache ${FILENAME}
+unmount_cache
+
+info "Initiating reboot"
+sync && reboot || warn 'Failed to initiate reboot'
