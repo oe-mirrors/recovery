@@ -1,0 +1,180 @@
+#!/bin/sh
+#
+# Copyright (C) 2014 Dream Property GmbH
+#
+
+set -e
+
+DEVICE=/dev/mmcblk0
+MEM_SIZE=0x20000000
+LCD_ANIM=/usr/share/fastboot/lcd_anim.bin
+OPTION=A
+VMLINUX=
+CMDLINE=
+INITRD=
+
+STDOUT=/dev/null
+TEMP=
+VERBOSE=1
+
+is_blockdev()
+{
+	[ -b "${1}" ]
+}
+
+is_file()
+{
+	[ -f "${1}" ]
+}
+
+is_readable()
+{
+	[ -r "${1}" ]
+}
+
+is_readable_file()
+{
+	is_file "${1}" && is_readable "${1}"
+}
+
+is_writeable()
+{
+	[ -w "${1}" ]
+}
+
+is_writeable_blockdev()
+{
+	is_blockdev "${1}" && is_writeable "${1}"
+}
+
+is_empty()
+{
+	[ -z "${1}" ]
+}
+
+cleanup()
+{
+	is_empty "${TEMP}" || rm -rf "${TEMP}"
+}
+
+abort()
+{
+	echo "Fatal: $@"
+	exit 1
+}
+
+info()
+{
+	is_empty "${VERBOSE}" || echo "[*] $@"
+}
+
+prepare_workspace()
+{
+	umask 077
+
+	TEMP=`mktemp -d` || abort 'Failed to create working directory'
+	trap cleanup EXIT
+	cd "${TEMP}" || abort 'Failed to change working directory'
+}
+
+create_blob()
+{
+	ARGS="-m ${MEM_SIZE} -o ${1}"
+	if is_readable_file "${LCD_ANIM}"; then
+		ARGS="${ARGS} -f ${LCD_ANIM} -t arc -i 1"
+	fi
+	if is_readable_file "${INITRD}"; then
+		ARGS="${ARGS} -f ${INITRD} -t initrd"
+	fi
+	if ! is_empty "${CMDLINE}"; then
+		echo -n "${CMDLINE}" > cmdline.txt
+		ARGS="${ARGS} -f cmdline.txt -t cmdline"
+	fi
+	ARGS="${ARGS} -f ${VMLINUX} -t kernel -d 0x1000"
+
+	info "Creating boot image"
+	mkbootblob ${ARGS} >${STDOUT}
+}
+
+write_blob()
+{
+	case "${3}" in
+		A)
+			SECTOR=16384
+			;;
+		B)
+			SECTOR=81920
+			;;
+	esac
+
+	info "Flashing boot image"
+	dd if=${1} of=${2} bs=512 seek=${SECTOR} conv=fsync >${STDOUT} 2>&1
+}
+
+select_boot_source()
+{
+	info "Enabling boot source ${2}"
+	printf "opt${2}\0" | dd of=${1} bs=512 seek=64 conv=fsync >${STDOUT} 2>&1
+}
+
+while getopts c:d:hi:k:l:m:o:qtv opt; do
+	case "$opt" in
+		c)
+			CMDLINE="$OPTARG"
+			;;
+		d)
+			DEVICE="$OPTARG"
+			;;
+		i)
+			INITRD="$OPTARG"
+			;;
+		k)
+			VMLINUX="$OPTARG"
+			;;
+		l)
+			LCD_ANIM="$OPTARG"
+			;;
+		m)
+			MEM_SIZE="$OPTARG"
+			;;
+		o)
+			OPTION="$OPTARG"
+			;;
+		q)
+			VERBOSE=
+			;;
+		t)
+			set -x
+			;;
+		v)
+			STDOUT=/dev/stdout
+			;;
+		h|?)
+			echo "Usage: $0 [-hqtv] [-c <cmdline>] [-d <device>] [-f <fpga-bin>] [-i <initrd>] [-l <lcd-bin>] [-m <mem-size>] [-o A|B] -k <vmlinux.bin>"
+			if [ "$opt" = "h" ]; then
+				exit 0
+			else
+				exit 1
+			fi
+			;;
+	esac
+done
+
+is_writeable_blockdev "${DEVICE}" || abort "Target block device '${DEVICE}' is not a writeable block device"
+is_empty "${LCD_ANIM}" || is_readable_file "${LCD_ANIM}" || abort "Cannot access '${LCD_ANIM}'"
+is_empty "${INITRD}" || is_readable_file "${INITRD}" || abort "Cannot access '${INITRD}'"
+! is_empty "${VMLINUX}" || abort "No kernel image given (option -k)"
+is_readable_file "${VMLINUX}" || abort "Cannot access '${VMLINUX}'"
+
+case "${OPTION}" in
+	A|B)
+		;;
+	*)
+		abort "Invalid boot option: ${OPTION}"
+		;;
+esac
+
+prepare_workspace
+create_blob bootblob.bin || abort "Failed to create boot image"
+write_blob bootblob.bin "${DEVICE}" "${OPTION}" || abort "Failed to flash boot image"
+select_boot_source "${DEVICE}" "${OPTION}" || abort "Failed to enable boot source"
