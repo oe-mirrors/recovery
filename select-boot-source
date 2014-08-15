@@ -1,0 +1,91 @@
+#!/bin/sh
+#
+# Copyright (C) 2014 Dream Property GmbH
+#
+
+set -e
+
+DEVICE=/dev/mmcblk0
+OPTION=A
+
+STDOUT=/dev/null
+TEMP=
+VERBOSE=1
+
+is_blockdev()
+{
+	[ -b "${1}" ]
+}
+
+is_writeable()
+{
+	[ -w "${1}" ]
+}
+
+is_writeable_blockdev()
+{
+	is_blockdev "${1}" && is_writeable "${1}"
+}
+
+is_empty()
+{
+	[ -z "${1}" ]
+}
+
+abort()
+{
+	echo "Fatal: $@"
+	exit 1
+}
+
+info()
+{
+	is_empty "${VERBOSE}" || echo "[*] $@"
+}
+
+select_boot_source()
+{
+	info "Enabling boot source ${2}"
+	printf "opt${2}\0" | dd of=${1} bs=512 seek=64 conv=fsync >${STDOUT} 2>&1
+}
+
+while getopts d:ho:qtv opt; do
+	case "$opt" in
+		d)
+			DEVICE="$OPTARG"
+			;;
+		o)
+			OPTION="$OPTARG"
+			;;
+		q)
+			VERBOSE=
+			;;
+		t)
+			set -x
+			;;
+		v)
+			STDOUT=/dev/stdout
+			;;
+		h|?)
+			echo "Usage: $0 [-hqtv] [-d <device>] [-o A|B|C]"
+			echo "       Default: -d ${DEVICE} -o ${OPTION}"
+			if [ "$opt" = "h" ]; then
+				exit 0
+			else
+				exit 1
+			fi
+			;;
+	esac
+done
+
+is_writeable_blockdev "${DEVICE}" || abort "Target block device '${DEVICE}' is not a writeable block device"
+
+case "${OPTION}" in
+	A|B|C)
+		;;
+	*)
+		abort "Invalid boot option: ${OPTION}"
+		;;
+esac
+
+select_boot_source "${DEVICE}" "${OPTION}" || abort "Failed to enable boot source"
