@@ -12,9 +12,63 @@ DATA_PARTITION=${DEVICE}p2
 DATA_MOUNTPOINT=/data
 RECOVERY_CACHE=${DATA_MOUNTPOINT}/.recovery
 
+STDOUT=/dev/null
+TEMP=
+VERBOSE=1
+
+is_blockdev()
+{
+	[ -b "${1}" ]
+}
+
+is_directory()
+{
+	[ -d "${1}" ]
+}
+
+is_file()
+{
+	[ -f "${1}" ]
+}
+
+is_readable()
+{
+	[ -r "${1}" ]
+}
+
+is_readable_file()
+{
+	is_file "${1}" && is_readable "${1}"
+}
+
+is_writeable()
+{
+	[ -w "${1}" ]
+}
+
+is_empty()
+{
+	[ -z "${1}" ]
+}
+
+is_initrd()
+{
+	is_file "/etc/initrd-release"
+}
+
+is_nfsroot()
+{
+	is_readable_file /proc/cmdline && grep -q -w root=/dev/nfs /proc/cmdline
+}
+
+is_mountpoint()
+{
+	mountpoint -q "${1}"
+}
+
 cleanup()
 {
-	[ -z "$TEMP" ] || rm -rf "$TEMP"
+	is_empty "${TEMP}" || rm -rf "${TEMP}"
 	unmount ${DATA_MOUNTPOINT}
 }
 
@@ -31,126 +85,112 @@ warn()
 
 info()
 {
-	echo "[*] $@"
+	is_empty "${VERBOSE}" || echo "[*] $@"
+}
+
+prepare_workspace()
+{
+	umask 077
+
+	TEMP=`mktemp -d` || abort 'Failed to create working directory'
+	trap cleanup EXIT
+	cd "${TEMP}" || abort 'Failed to change working directory'
 }
 
 fetch()
 {
-	info "Downloading ${BASE_URI}/${1}"
-	wget -q ${BASE_URI}/${1} -O ${1}
+	info "Downloading '${1}/${2}'"
+	wget -q "${1}/${2}" -O "${2}" >${STDOUT}
 }
 
 verify()
 {
-	info "Verifying signature of ${1}"
-	gpgv -q --ignore-time-conflict ${1}.sig ${1}
+	info "Verifying signature of '${1}'"
+	gpgv -q --ignore-time-conflict "${1}.sig" "${1}" >${STDOUT}
 }
 
 fetch_signed()
 {
-	fetch ${1}.sig
+	fetch "${1}" "${2}.sig" || true
 
-	if [ -f "${RECOVERY_CACHE}/${1}" -a -f "${RECOVERY_CACHE}/${1}.sig" ]; then
-		if [ ! -f ${1}.sig ] || cmp -s ${1}.sig ${RECOVERY_CACHE}/${1}.sig; then
-			info "Copying ${1} from local storage"
-			cp ${RECOVERY_CACHE}/${1}.sig ${1}.sig
-			cp ${RECOVERY_CACHE}/${1} ${1}
+	if [ -f "${RECOVERY_CACHE}/${2}" -a -f "${RECOVERY_CACHE}/${2}.sig" ]; then
+		if [ ! -f "${2}.sig" ] || cmp -s "${2}.sig" "${RECOVERY_CACHE}/${2}.sig"; then
+			info "Copying '${2}' from local storage"
+			cp "${RECOVERY_CACHE}/${2}.sig" "${2}.sig"
+			cp "${RECOVERY_CACHE}/${2}" "${2}"
 		fi
 	fi
 
-	[ -f ${1}.sig ] || abort "Failed to obtain signature '${1}.sig'"
-	[ -f ${1} ] && verify ${1} || fetch ${1} || abort "Failed to download '${1}'"
-
-	verify ${1} || abort 'Failed to verify signature'
+	[ -f "${2}.sig" ] || abort "Failed to obtain signature '${2}.sig'"
+	[ -f "${2}" ] && verify "${2}" || {
+		fetch "${1}" "${2}" || abort "Failed to download '${2}'"
+		verify "${2}" || abort 'Failed to verify signature'
+	}
 }
 
 create_directory()
 {
-	mkdir -p ${1}
-}
-
-is_blockdev()
-{
-	[ -b "${1}" ]
-}
-
-is_directory()
-{
-	[ -d "${1}" ]
-}
-
-is_mountpoint()
-{
-	mountpoint -q ${1}
-}
-
-is_writeable()
-{
-	[ -w "${1}" ]
+	mkdir -p "${1}" >${STDOUT}
 }
 
 unmount()
 {
-	if is_mountpoint ${1}; then
-		info "Unmounting ${1}"
-		umount ${1} || mount -o remount,ro ${1}
+	if is_mountpoint "${1}"; then
+		info "Unmounting '${1}'"
+		umount "${1}" || mount -o remount,ro "${1}"
 	fi
 }
 
 mount_cache()
 {
-	if is_blockdev ${DATA_PARTITION}; then
-		create_directory ${DATA_MOUNTPOINT}
-		if is_directory ${DATA_MOUNTPOINT}; then
-			info "Mounting ${DATA_MOUNTPOINT} (ro)"
-			mount -o ro ${DATA_PARTITION} ${DATA_MOUNTPOINT} || warn "Failed to mount data filesystem"
+	if is_blockdev "${DATA_PARTITION}"; then
+		create_directory "${DATA_MOUNTPOINT}"
+		if is_directory "${DATA_MOUNTPOINT}"; then
+			info "Mounting '${DATA_MOUNTPOINT}' (ro)"
+			mount -o ro "${DATA_PARTITION}" "${DATA_MOUNTPOINT}" || warn "Failed to mount data filesystem"
 		fi
 	fi
 }
 
 cache_changed()
 {
-	is_mountpoint ${DATA_MOUNTPOINT} && ! cmp -s ${RECOVERY_CACHE}/${1}.sig ${1}.sig
+	is_mountpoint "${DATA_MOUNTPOINT}" && ! cmp -s "${RECOVERY_CACHE}/${1}.sig" "${1}.sig"
 }
 
 remount_cache_rw()
 {
-	is_mountpoint ${DATA_MOUNTPOINT} && info "Remounting ${DATA_MOUNTPOINT} (rw)" && \
-		mount -o remount,rw ${DATA_MOUNTPOINT} && is_writeable ${DATA_MOUNTPOINT}
+	is_mountpoint "${DATA_MOUNTPOINT}" && info "Remounting '${DATA_MOUNTPOINT}' (rw)" && \
+		mount -o remount,rw "${DATA_MOUNTPOINT}" && is_writeable "${DATA_MOUNTPOINT}"
 }
 
 update_cache()
 {
-	if cache_changed ${1} && remount_cache_rw; then
-		create_directory ${RECOVERY_CACHE}
-		if is_directory ${RECOVERY_CACHE}; then
+	if cache_changed "${1}" && remount_cache_rw; then
+		create_directory "${RECOVERY_CACHE}"
+		if is_directory "${RECOVERY_CACHE}"; then
 			info "Updating recovery cache"
-			cp ${FILENAME} ${RECOVERY_CACHE}/${FILENAME} || true
-			cp ${FILENAME}.sig ${RECOVERY_CACHE}/${FILENAME}.sig || true
+			cp "${FILENAME}" "${RECOVERY_CACHE}/${FILENAME}" || true
+			cp "${FILENAME}.sig" "${RECOVERY_CACHE}/${FILENAME}.sig" || true
 		fi
 	fi
 }
 
 unmount_cache()
 {
-	unmount ${DATA_MOUNTPOINT}
+	unmount "${DATA_MOUNTPOINT}"
 }
 
 run()
 {
-	info "Running ${1}"
-	chmod 755 ${1} || abort "Failed to set execute permissions"
-	${1} || abort "Failed to execute ${1}"
+	info "Running '${1}'"
+	chmod 755 "${1}" || abort "Failed to set execute permissions"
+	"${1}" || abort "Failed to execute '${1}'"
 }
 
-[ -f /etc/initrd-release ] || abort "This script may only run in recovery mode!"
+is_initrd || is_nfsroot || abort "This script may only run in recovery mode!"
 
-umask 077
-
-TEMP=`mktemp -d` || abort 'Failed to create working directory'
-trap cleanup EXIT
-cd $TEMP || abort 'Failed to change working directory'
-export GNUPGHOME=$TEMP
+prepare_workspace
+export GNUPGHOME="${TEMP}"
 
 (base64 -d > trustedkeys.gpg || abort 'Failed to write public key') << EOF
 mQENBFPo2oUBCAC6dzqe5azBCkxzj99xNfzwB4L6tHzz83zqD2KUQuuJMhO7Q2g9AHnSNQ0z1+Bz
@@ -168,9 +208,9 @@ s1tBOOQNKpywAgAD
 EOF
 
 mount_cache
-fetch_signed ${FILENAME}
+fetch_signed "${BASE_URI}" "${FILENAME}"
 
-update_cache ${FILENAME}
+update_cache "${FILENAME}"
 unmount_cache
 
-run ./${FILENAME}
+run "./${FILENAME}"
