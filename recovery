@@ -165,6 +165,23 @@ extract()
 	tar -xf "${1}" -C "${2}" >${STDOUT}
 }
 
+run_postinsts()
+{
+	local virtfs="dev proc run sys tmp"
+	local mountpoint=$1
+	shift
+
+	for fs in ${virtfs}; do
+		mount -o bind /${fs} ${mountpoint}/${fs} || abort "Failed to mount ${mountpoint}/${fs}"
+	done
+	for package in $@; do
+		chroot ${mountpoint} /var/lib/opkg/info/${package}.postinst || abort "Failed to run ${package}.postinst"
+	done
+	for fs in ${virtfs}; do
+		unmount ${mountpoint}/${fs} || warn "Failed to unmount ${mountpoint}/${fs}"
+	done
+}
+
 unmount()
 {
 	if is_mountpoint "${1}"; then
@@ -247,6 +264,7 @@ create_filesystem "${ROOT_NAME}" "${ROOT_PARTITION}" || abort "Failed to create 
 info "Mounting root filesystem"
 mount "${ROOT_PARTITION}" "${ROOT_MOUNTPOINT}" || abort "Failed to mount root filesystem"
 extract "${FILENAME}" "${ROOT_MOUNTPOINT}" || abort "Failed to extract root filesystem"
+run_postinsts "${ROOT_MOUNTPOINT}" kernel-image || abort "Failed to run postinst scripts"
 unmount "${ROOT_MOUNTPOINT}" || warn "Failed to unmount root filesystem"
 
 update_cache "${FILENAME}"
