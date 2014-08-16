@@ -139,6 +139,11 @@ fetch_signed()
 	}
 }
 
+create_directory()
+{
+	mkdir -p "${1}" >${STDOUT}
+}
+
 create_partition_table()
 {
 	info "Creating partition table"
@@ -158,11 +163,6 @@ extract()
 {
 	info "Extracting '${1}' to '${2}'"
 	tar -xf "${1}" -C "${2}" >${STDOUT}
-}
-
-create_directory()
-{
-	mkdir -p "${1}" >${STDOUT}
 }
 
 unmount()
