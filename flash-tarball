@@ -1,0 +1,190 @@
+#!/bin/sh
+#
+# Copyright (C) 2014 Dream Property GmbH
+#
+
+set -e
+
+FILENAME=
+DEVICE=/dev/mmcblk0
+ROOT_PARTITION=${DEVICE}p1
+ROOT_MOUNTPOINT=/mnt
+ROOT_NAME=dreambox-rootfs
+DATA_PARTITION=${DEVICE}p2
+DATA_NAME=dreambox-data
+FILESYSTEM=ext4
+
+STDOUT=/dev/null
+TEMP=
+VERBOSE=1
+
+is_blockdev()
+{
+	[ -b "${1}" ]
+}
+
+is_file()
+{
+	[ -f "${1}" ]
+}
+
+is_readable()
+{
+	[ -r "${1}" ]
+}
+
+is_readable_file()
+{
+	is_file "${1}" && is_readable "${1}"
+}
+
+is_writeable()
+{
+	[ -w "${1}" ]
+}
+
+is_writeable_blockdev()
+{
+	is_blockdev "${1}" && is_writeable "${1}"
+}
+
+is_empty()
+{
+	[ -z "${1}" ]
+}
+
+is_initrd()
+{
+	is_file "/etc/initrd-release"
+}
+
+is_nfsroot()
+{
+	is_readable_file /proc/cmdline && grep -q -w root=/dev/nfs /proc/cmdline
+}
+
+is_mountpoint()
+{
+	mountpoint -q "${1}"
+}
+
+cleanup()
+{
+	is_empty "${TEMP}" || rm -rf "${TEMP}"
+	unmount ${ROOT_MOUNTPOINT}
+}
+
+abort()
+{
+	echo "Fatal: $@"
+	exit 1
+}
+
+warn()
+{
+	echo "Warning: $@"
+}
+
+info()
+{
+	is_empty "${VERBOSE}" || echo "[*] $@"
+}
+
+create_partition_table()
+{
+	info "Creating partition table"
+	parted --script --align=optimal "${1}" -- \
+		mklabel gpt \
+		mkpart primary ext2 72MiB 1GiB \
+		mkpart primary ext2 1GiB 100% >${STDOUT}
+}
+
+create_filesystem()
+{
+	info "Creating ${FILESYSTEM} filesystem '${1}' on ${2}"
+	mkfs.${FILESYSTEM} -L "${1}" "${2}" >${STDOUT}
+}
+
+extract()
+{
+	info "Extracting '${1}' to '${2}'"
+	tar -xf "${1}" -C "${2}" >${STDOUT}
+}
+
+run_postinsts()
+{
+	local virtfs="dev proc run sys tmp"
+	local mountpoint=$1
+	shift
+
+	for fs in ${virtfs}; do
+		mount -o bind /${fs} ${mountpoint}/${fs} || abort "Failed to mount ${mountpoint}/${fs}"
+	done
+	for package in $@; do
+		chroot ${mountpoint} /var/lib/opkg/info/${package}.postinst || abort "Failed to run ${package}.postinst"
+	done
+	for fs in ${virtfs}; do
+		unmount ${mountpoint}/${fs} || warn "Failed to unmount ${mountpoint}/${fs}"
+	done
+}
+
+unmount()
+{
+	if is_mountpoint "${1}"; then
+		info "Unmounting '${1}'"
+		umount "${1}" || mount -o remount,ro "${1}"
+	fi
+}
+
+usage()
+{
+	echo "Usage: ${0} [-hqtv] [-d <device>] <dreambox-image.tar.[bz2|gz|xz]>"
+	echo "       Default: -d ${DEVICE}"
+	exit ${1}
+}
+
+while getopts d:hqtv opt; do
+	case "$opt" in
+		d)
+			DEVICE="${OPTARG}"
+			;;
+		q)
+			VERBOSE=
+			;;
+		t)
+			set -x
+			;;
+		v)
+			STDOUT=/dev/stdout
+			;;
+		h|?)
+			if [ "$opt" = "h" ]; then
+				usage 0
+			else
+				usage 1
+			fi
+			;;
+	esac
+done
+
+shift $((${OPTIND} - 1))
+[ "$#" -eq 1 ] || usage 1
+FILENAME=${1}
+
+is_initrd || is_nfsroot || abort "This script may only run in recovery mode!"
+
+is_writeable_blockdev "${DEVICE}" || abort "Target block device '${DEVICE}' is not a writeable block device"
+! is_empty "${FILENAME}" || abort "No tarball filename given"
+is_readable_file "${FILENAME}" || abort "Cannot access '${FILENAME}'"
+
+if ! is_blockdev "${ROOT_PARTITION}" || ! is_blockdev "${DATA_PARTITION}"; then
+	create_partition_table "${DEVICE}" || abort "Failed to partition disk"
+	create_filesystem "${DATA_NAME}" "${DATA_PARTITION}" || warn "Failed to create ${FILESYSTEM} filesystem '${DATA_NAME}' on '${DATA_PARTITION}'"
+fi
+
+create_filesystem "${ROOT_NAME}" "${ROOT_PARTITION}" || abort "Failed to create ${FILESYSTEM} filesystem '${ROOT_NAME}' on '${ROOT_PARTITION}'"
+info "Mounting root filesystem"
+mount "${ROOT_PARTITION}" "${ROOT_MOUNTPOINT}" || abort "Failed to mount root filesystem"
+extract "${FILENAME}" "${ROOT_MOUNTPOINT}" || abort "Failed to extract root filesystem"
+run_postinsts "${ROOT_MOUNTPOINT}" kernel-image || abort "Failed to run postinst scripts"
+unmount "${ROOT_MOUNTPOINT}" || warn "Failed to unmount root filesystem"
