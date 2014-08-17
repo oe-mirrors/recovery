@@ -117,28 +117,32 @@ select_boot_source()
 	printf "opt${2}\0" | dd of=${1} bs=512 seek=64 conv=fsync >${STDOUT} 2>&1
 }
 
-while getopts c:d:hi:k:l:m:o:qtv opt; do
-	case "$opt" in
+usage()
+{
+	echo "Usage: ${0} [-hqtv] [-c <cmdline>] [-d <device>] [-i <initrd>] [-l <lcd-bin>] [-m <mem-size>] [-o A|B] <vmlinux.bin>"
+	echo "       Default: -d ${DEVICE} -l ${LCD_ANIM} -m ${MEM_SIZE} -o ${OPTION}"
+	exit ${1}
+}
+
+while getopts c:d:hi:l:m:o:qtv opt; do
+	case "${opt}" in
 		c)
-			CMDLINE="$OPTARG"
+			CMDLINE="${OPTARG}"
 			;;
 		d)
-			DEVICE="$OPTARG"
+			DEVICE="${OPTARG}"
 			;;
 		i)
-			INITRD="$OPTARG"
-			;;
-		k)
-			VMLINUX="$OPTARG"
+			INITRD="${OPTARG}"
 			;;
 		l)
-			LCD_ANIM="$OPTARG"
+			LCD_ANIM="${OPTARG}"
 			;;
 		m)
-			MEM_SIZE="$OPTARG"
+			MEM_SIZE="${OPTARG}"
 			;;
 		o)
-			OPTION="$OPTARG"
+			OPTION="${OPTARG}"
 			;;
 		q)
 			VERBOSE=
@@ -150,20 +154,23 @@ while getopts c:d:hi:k:l:m:o:qtv opt; do
 			STDOUT=/dev/stdout
 			;;
 		h|?)
-			echo "Usage: $0 [-hqtv] [-c <cmdline>] [-d <device>] [-f <fpga-bin>] [-i <initrd>] [-l <lcd-bin>] [-m <mem-size>] [-o A|B] -k <vmlinux.bin>"
-			if [ "$opt" = "h" ]; then
-				exit 0
+			if [ "${opt}" = "h" ]; then
+				usage 0
 			else
-				exit 1
+				usage 1
 			fi
 			;;
 	esac
 done
 
+shift $((${OPTIND} - 1))
+[ "$#" -eq 1 ] || usage 1
+VMLINUX="${1}"
+
 is_writeable_blockdev "${DEVICE}" || abort "Target block device '${DEVICE}' is not a writeable block device"
 is_empty "${LCD_ANIM}" || is_readable_file "${LCD_ANIM}" || abort "Cannot access '${LCD_ANIM}'"
 is_empty "${INITRD}" || is_readable_file "${INITRD}" || abort "Cannot access '${INITRD}'"
-! is_empty "${VMLINUX}" || abort "No kernel image given (option -k)"
+! is_empty "${VMLINUX}" || abort "No kernel image given"
 is_readable_file "${VMLINUX}" || abort "Cannot access '${VMLINUX}'"
 
 case "${OPTION}" in
