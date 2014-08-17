@@ -6,7 +6,7 @@
 set -e
 
 DEVICE=/dev/mmcblk0
-OPTION=A
+OPTION=
 
 STDOUT=/dev/null
 TEMP=
@@ -49,13 +49,17 @@ select_boot_source()
 	printf "opt${2}\0" | dd of=${1} bs=512 seek=64 conv=fsync >${STDOUT} 2>&1
 }
 
-while getopts d:ho:qtv opt; do
-	case "$opt" in
+usage()
+{
+	echo "Usage: ${0} [-hqtv] [-d <device>] [A|B|C]"
+	echo "       Default: -d ${DEVICE}"
+	exit ${1}
+}
+
+while getopts d:hqtv opt; do
+	case "${opt}" in
 		d)
-			DEVICE="$OPTARG"
-			;;
-		o)
-			OPTION="$OPTARG"
+			DEVICE="${OPTARG}"
 			;;
 		q)
 			VERBOSE=
@@ -67,18 +71,21 @@ while getopts d:ho:qtv opt; do
 			STDOUT=/dev/stdout
 			;;
 		h|?)
-			echo "Usage: $0 [-hqtv] [-d <device>] [-o A|B|C]"
-			echo "       Default: -d ${DEVICE} -o ${OPTION}"
 			if [ "$opt" = "h" ]; then
-				exit 0
+				usage 0
 			else
-				exit 1
+				usage 1
 			fi
 			;;
 	esac
 done
 
+shift $((${OPTIND} - 1))
+[ "$#" -eq 1 ] || usage 1
+OPTION=${1}
+
 is_writeable_blockdev "${DEVICE}" || abort "Target block device '${DEVICE}' is not a writeable block device"
+! is_empty "${OPTION}" || abort "No option given"
 
 case "${OPTION}" in
 	A|B|C)
