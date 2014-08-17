@@ -90,6 +90,15 @@ info()
 	is_empty "${VERBOSE}" || echo "[*] $@"
 }
 
+prepare_workspace()
+{
+	umask 077
+
+	TEMP=`mktemp -d` || abort 'Failed to create working directory'
+	trap cleanup EXIT
+	cd "${TEMP}" || abort 'Failed to change working directory'
+}
+
 create_partition_table()
 {
 	info "Creating partition table"
@@ -176,6 +185,8 @@ is_initrd || is_nfsroot || abort "This script may only run in recovery mode!"
 is_writeable_blockdev "${DEVICE}" || abort "Target block device '${DEVICE}' is not a writeable block device"
 ! is_empty "${FILENAME}" || abort "No tarball filename given"
 is_readable_file "${FILENAME}" || abort "Cannot access '${FILENAME}'"
+
+prepare_workspace
 
 if ! is_blockdev "${ROOT_PARTITION}" || ! is_blockdev "${DATA_PARTITION}"; then
 	create_partition_table "${DEVICE}" || abort "Failed to partition disk"
