@@ -1,0 +1,42 @@
+#!/bin/sh
+
+IP=`ip -f inet -o address show dev eth0 | awk '{print $4}' | sed -e 's,/.*,,'`
+
+cat << EOF
+Your Dreambox has booted into rescue mode. If it failed to start up, this mode
+can be used to recover. This rescue mode offers a web frontend, which can be
+accessed with a browser, which is the recommended way to continue.
+
+EOF
+if [ -z "$IP" ]; then
+cat << EOF
+Automatic network configuration via DHCP does not seem to be available. Please
+verify that your Dreambox is connected to a router via ethernet.
+
+You can set up an IP address and a route manually like this:
+
+  ifconfig eth0 192.168.1.80 netmask 255.255.255.0 up
+  route add default gw 192.168.1.1
+
+Then, please point your web browser to http://192.168.1.80/
+EOF
+else
+cat << EOF
+Please point your web browser to: http://${IP}/
+EOF
+fi
+cat << EOF
+
+In case you don't mind using the shell, you might be interested in one of the
+following commands:
+
+run-recovery: Fetches a recovery firmware image from the internet or internal
+memory (if available) and installs it, replacing the current operating system.
+
+select-boot-source [A|B|C]: Used to select between two possible kernel images
+(A or B) and the optional second stage bootloader (C). Original firmware uses
+option A, which can be selected by running "select-boot-source A".
+
+flash-tarball: Flashes a firmware file provided by you, either on internal or
+external memory, or via local area network. See "flash-tarball -h".
+EOF
