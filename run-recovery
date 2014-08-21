@@ -12,6 +12,7 @@ DATA_PARTITION=${DEVICE}p2
 DATA_MOUNTPOINT=/data
 RECOVERY_CACHE=${DATA_MOUNTPOINT}/.recovery
 
+HTMLESCAPE=cat
 STDOUT=/dev/null
 TEMP=
 VERBOSE=1
@@ -106,7 +107,7 @@ fetch()
 verify()
 {
 	info "Verifying signature of '${1}'"
-	gpgv -q --ignore-time-conflict "${1}.sig" "${1}" >${STDOUT}
+	gpgv -q --ignore-time-conflict "${1}.sig" "${1}" 2>&1 | ${HTMLESCAPE} >${STDOUT}
 }
 
 fetch_signed()
@@ -182,10 +183,45 @@ unmount_cache()
 
 run()
 {
-	info "Running '${1}'"
-	chmod 755 "${1}" || abort "Failed to set execute permissions"
-	"${1}" || abort "Failed to execute '${1}'"
+	local cmd="${1}"
+	shift
+
+	info "Running '${cmd}'"
+	[ -z "$@" ] || info "Options '$@'"
+	chmod 755 "${cmd}" || abort "Failed to set execute permissions"
+	${cmd} $@ || abort "Failed to execute '${cmd}'"
 }
+
+usage()
+{
+	echo "Usage: ${0} [-ehqtv]"
+	exit ${1}
+}
+
+SAVED_ARGV="$@"
+while getopts ehqtv opt; do
+	case "${opt}" in
+		e)
+			HTMLESCAPE="sed -e s,<,\&lt,g -e s,>,\&gt,g"
+			;;
+		q)
+			VERBOSE=
+			;;
+		t)
+			set -x
+			;;
+		v)
+			STDOUT=/dev/stdout
+			;;
+		h|?)
+			if [ "$opt" = "h" ]; then
+				usage 0
+			else
+				usage 1
+			fi
+			;;
+	esac
+done
 
 is_initrd || is_nfsroot || abort "This script may only run in recovery mode!"
 
@@ -213,4 +249,4 @@ fetch_signed "${BASE_URI}" "${FILENAME}"
 update_cache "${FILENAME}"
 unmount_cache
 
-run "./${FILENAME}"
+run "./${FILENAME}" "${SAVED_ARGV}"
