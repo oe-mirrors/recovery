@@ -63,7 +63,7 @@ is_nfsroot()
 
 is_mountpoint()
 {
-	mountpoint -q "${1}"
+	mountpoint -q `realpath "${1}"`
 }
 
 cleanup()
