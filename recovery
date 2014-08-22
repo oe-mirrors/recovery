@@ -17,7 +17,6 @@ DATA_NAME=dreambox-data
 RECOVERY_CACHE=${DATA_MOUNTPOINT}/.recovery
 FILESYSTEM=ext4
 
-HTMLESCAPE=cat
 STDOUT=/dev/null
 TEMP=
 VERBOSE=1
@@ -118,7 +117,7 @@ fetch()
 verify()
 {
 	info "Verifying signature of '${1}'"
-	gpgv -q --ignore-time-conflict "${1}.sig" "${1}" 2>&1 | ${HTMLESCAPE} >${STDOUT}
+	gpgv -q --ignore-time-conflict "${1}.sig" "${1}" >${STDOUT}
 }
 
 fetch_signed()
@@ -232,15 +231,12 @@ unmount_cache()
 
 usage()
 {
-	echo "Usage: ${0} [-ehqtv]"
+	echo "Usage: ${0} [-hqtv]"
 	exit ${1}
 }
 
-while getopts ehqtv opt; do
+while getopts hqtv opt; do
 	case "${opt}" in
-		e)
-			HTMLESCAPE="sed -e s,<,\&lt,g -e s,>,\&gt,g"
-			;;
 		q)
 			VERBOSE=
 			;;
