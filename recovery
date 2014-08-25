@@ -6,7 +6,7 @@
 set -e
 
 BASE_URI=http://dreamboxupdate.com/download/recovery/dm7080/release
-FILENAME=dreambox-image-dm7080.tar.bz2
+FILENAME=dreambox-image-dm7080.tar.xz
 DEVICE=/dev/mmcblk0
 ROOT_PARTITION=${DEVICE}p1
 ROOT_MOUNTPOINT=/mnt
