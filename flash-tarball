@@ -185,6 +185,7 @@ is_initrd || is_nfsroot || abort "This script may only run in recovery mode!"
 is_writeable_blockdev "${DEVICE}" || abort "Target block device '${DEVICE}' is not a writeable block device"
 ! is_empty "${FILENAME}" || abort "No tarball filename given"
 is_readable_file "${FILENAME}" || abort "Cannot access '${FILENAME}'"
+FILENAME=`realpath ${FILENAME}`
 
 prepare_workspace
 
