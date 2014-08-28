@@ -126,11 +126,20 @@ run_postinsts()
 	local mountpoint=$1
 	shift
 
+	if [ -d "${mountpoint}/var/lib/dpkg/info" ]; then
+		pkgtype="dpkg"
+	elif [ -d "${mountpoint}/var/lib/opkg/info" ]; then
+		pkgtype="opkg"
+	else
+		warn "Unknown package manager, can't run postinst scripts"
+		return
+	fi
+
 	for fs in ${virtfs}; do
 		mount -o bind /${fs} ${mountpoint}/${fs} || abort "Failed to mount ${mountpoint}/${fs}"
 	done
 	for package in $@; do
-		chroot ${mountpoint} /var/lib/opkg/info/${package}.postinst || abort "Failed to run ${package}.postinst"
+		chroot ${mountpoint} /var/lib/${pkgtype}/info/${package}.postinst || abort "Failed to run ${package}.postinst"
 	done
 	for fs in ${virtfs}; do
 		unmount ${mountpoint}/${fs} || warn "Failed to unmount ${mountpoint}/${fs}"
