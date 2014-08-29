@@ -1,0 +1,114 @@
+#!/bin/sh
+#
+# Copyright (C) 2014 Dream Property GmbH
+#
+
+set -e
+
+DEVICE=/dev/mmcblk0
+MAX_IMAGE_SIZE=$((4 * 1024 * 1024))
+
+STDOUT=/dev/null
+TEMP=
+VERBOSE=1
+
+is_blockdev()
+{
+	[ -b "${1}" ]
+}
+
+is_file()
+{
+	[ -f "${1}" ]
+}
+
+is_readable()
+{
+	[ -r "${1}" ]
+}
+
+is_readable_file()
+{
+	is_file "${1}" && is_readable "${1}"
+}
+
+is_writeable()
+{
+	[ -w "${1}" ]
+}
+
+is_writeable_blockdev()
+{
+	is_blockdev "${1}" && is_writeable "${1}"
+}
+
+is_empty()
+{
+	[ -z "${1}" ]
+}
+
+is_file_size_le()
+{
+	[ "`stat -c '%s' ${1}`" -le "${2}" ]
+}
+
+abort()
+{
+	echo "Fatal: $@"
+	exit 1
+}
+
+info()
+{
+	is_empty "${VERBOSE}" || echo "[*] $@"
+}
+
+write_blob()
+{
+	SECTOR=8192
+
+	info "Flashing boot image"
+	dd if=${1} of=${2} bs=512 seek=${SECTOR} conv=fsync >${STDOUT} 2>&1
+}
+
+usage()
+{
+	echo "Usage: ${0} [-hqtv] [-d <device>] <ssbl.bin>"
+	echo "       Default: -d ${DEVICE}"
+	exit ${1}
+}
+
+while getopts d:hqtv opt; do
+	case "${opt}" in
+		d)
+			DEVICE="${OPTARG}"
+			;;
+		q)
+			VERBOSE=
+			;;
+		t)
+			set -x
+			;;
+		v)
+			STDOUT=/dev/stdout
+			;;
+		h|?)
+			if [ "${opt}" = "h" ]; then
+				usage 0
+			else
+				usage 1
+			fi
+			;;
+	esac
+done
+
+shift $((${OPTIND} - 1))
+[ "$#" -eq 1 ] || usage 1
+SSBL="${1}"
+
+is_writeable_blockdev "${DEVICE}" || abort "Target block device '${DEVICE}' is not a writeable block device"
+! is_empty "${SSBL}" || abort "No bootloader image given"
+is_readable_file "${SSBL}" || abort "Cannot access '${SSBL}'"
+
+is_file_size_le "${SSBL}" "${MAX_IMAGE_SIZE}" || abort "Boot image is too big"
+write_blob "${SSBL}" "${DEVICE}" "${OPTION}" || abort "Failed to flash boot image"
