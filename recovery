@@ -300,7 +300,7 @@ create_filesystem "${ROOT_NAME}" "${ROOT_PARTITION}" || abort "Failed to create 
 info "Mounting root filesystem"
 mount "${ROOT_PARTITION}" "${ROOT_MOUNTPOINT}" || abort "Failed to mount root filesystem"
 extract "${FILENAME}" "${ROOT_MOUNTPOINT}" || abort "Failed to extract root filesystem"
-run_postinsts "${ROOT_MOUNTPOINT}" kernel-image || abort "Failed to run postinst scripts"
+run_postinsts "${ROOT_MOUNTPOINT}" dreambox-secondstage kernel-image || abort "Failed to run postinst scripts"
 unmount "${ROOT_MOUNTPOINT}" || warn "Failed to unmount root filesystem"
 
 update_cache "${FILENAME}"
