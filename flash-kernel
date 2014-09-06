@@ -7,7 +7,7 @@ set -e
 
 DEVICE=/dev/mmcblk0
 MEM_SIZE=0x10000000
-ARC_IMAGES=/usr/share/fastboot/lcd_anim.bin:/usr/share/fastboot/fpga_load.bin
+ARC_IMAGES=/usr/share/fastboot/lcd_anim.bin
 MAX_IMAGE_SIZE=$((32 * 1024 * 1024))
 OPTION=A
 VMLINUX=
