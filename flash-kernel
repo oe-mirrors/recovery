@@ -3,9 +3,8 @@
 # Copyright (C) 2014 Dream Property GmbH
 #
 
-set -e
+source librecovery
 
-DEVICE=/dev/mmcblk0
 MEM_SIZE=0x10000000
 ARC_IMAGES=/usr/share/fastboot/lcd_anim.bin
 MAX_IMAGE_SIZE=$((32 * 1024 * 1024))
@@ -14,80 +13,10 @@ VMLINUX=
 CMDLINE=
 INITRD=
 
-STDOUT=/dev/null
-TEMP=
-VERBOSE=1
-
-is_blockdev()
-{
-	[ -b "${1}" ]
-}
-
-is_file()
-{
-	[ -f "${1}" ]
-}
-
-is_readable()
-{
-	[ -r "${1}" ]
-}
-
-is_readable_file()
-{
-	is_file "${1}" && is_readable "${1}"
-}
-
-is_writeable()
-{
-	[ -w "${1}" ]
-}
-
-is_writeable_blockdev()
-{
-	is_blockdev "${1}" && is_writeable "${1}"
-}
-
-is_empty()
-{
-	[ -z "${1}" ]
-}
-
-is_file_size_le()
-{
-	[ "`stat -c '%s' ${1}`" -le "${2}" ]
-}
-
-cleanup()
-{
-	is_empty "${TEMP}" || rm -rf "${TEMP}"
-}
-
-abort()
-{
-	echo "Fatal: $@"
-	exit 1
-}
-
-info()
-{
-	is_empty "${VERBOSE}" || echo "[*] $@"
-}
-
-prepare_workspace()
-{
-	umask 077
-
-	TEMP=`mktemp -d` || abort 'Failed to create working directory'
-	trap cleanup EXIT
-	cd "${TEMP}" || abort 'Failed to change working directory'
-}
-
 create_blob()
 {
 	ARGS="-m ${MEM_SIZE} -o ${1}"
 	INDEX=0
-	OLDIFS=${IFS}
 	IFS=:
 	for FILE in ${ARC_IMAGES}; do
 		if is_readable_file "${FILE}"; then
@@ -95,7 +24,7 @@ create_blob()
 			INDEX=$((${INDEX} + 1))
 		fi
 	done
-	IFS=${OLDIFS}
+	unset IFS
 	if is_readable_file "${INITRD}"; then
 		ARGS="${ARGS} -f ${INITRD} -t initrd"
 	fi
@@ -113,40 +42,28 @@ write_blob()
 {
 	case "${3}" in
 		A)
-			SECTOR=16384
+			write_lba "${1}" "${2}" 16384
 			;;
 		B)
-			SECTOR=81920
+			write_lba "${1}" "${2}" 81920
 			;;
 	esac
-
-	info "Flashing boot image"
-	dd if=${1} of=${2} bs=512 seek=${SECTOR} conv=fsync >${STDOUT} 2>&1
-}
-
-select_boot_source()
-{
-	info "Enabling boot source ${2}"
-	printf "opt${2}\0" | dd of=${1} bs=512 seek=64 conv=fsync >${STDOUT} 2>&1
 }
 
 usage()
 {
-	echo "Usage: ${0} [-hqtv] [-a <arc images>] [-c <cmdline>] [-d <device>] [-i <initrd>] [-m <mem-size>] [-o A|B] <vmlinux.bin>"
-	echo "       Default: -a ${ARC_IMAGES} -d ${DEVICE} -m ${MEM_SIZE} -o ${OPTION}"
+	echo "Usage: ${0} [-hqtv] [-a <arc images>] [-c <cmdline>] [-i <initrd>] [-m <mem-size>] [-o A|B] <vmlinux.bin>"
+	echo "       Default: -a ${ARC_IMAGES} -m ${MEM_SIZE} -o ${OPTION}"
 	exit ${1}
 }
 
-while getopts a:c:d:hi:m:o:qtv opt; do
+while getopts a:c:hi:m:o:qtv opt; do
 	case "${opt}" in
 		a)
 			ARC_IMAGES="${OPTARG}"
 			;;
 		c)
 			CMDLINE="${OPTARG}"
-			;;
-		d)
-			DEVICE="${OPTARG}"
 			;;
 		i)
 			INITRD="${OPTARG}"
@@ -157,36 +74,20 @@ while getopts a:c:d:hi:m:o:qtv opt; do
 		o)
 			OPTION="${OPTARG}"
 			;;
-		q)
-			VERBOSE=
-			;;
-		t)
-			set -x
-			;;
-		v)
-			STDOUT=/dev/stdout
-			;;
-		h|?)
-			if [ "${opt}" = "h" ]; then
-				usage 0
-			else
-				usage 1
-			fi
-			;;
 	esac
+	std_opt "${opt}"
 done
 
 shift $((${OPTIND} - 1))
 [ "$#" -eq 1 ] || usage 1
-VMLINUX="${1}"
+VMLINUX=`xrealpath ${1}`
 
-is_writeable_blockdev "${DEVICE}" || abort "Target block device '${DEVICE}' is not a writeable block device"
-OLDIFS=${IFS}
+is_writable_blockdev "${MMC_DEVICE}" || abort "Target block device '${MMC_DEVICE}' is not a writable block device"
 IFS=:
 for FILE in ${ARC_IMAGES}; do
 	is_readable_file "${FILE}" || abort "Cannot access '${FILE}'"
 done
-IFS=${OLDIFS}
+unset IFS
 is_empty "${INITRD}" || is_readable_file "${INITRD}" || abort "Cannot access '${INITRD}'"
 ! is_empty "${VMLINUX}" || abort "No kernel image given"
 is_readable_file "${VMLINUX}" || abort "Cannot access '${VMLINUX}'"
@@ -199,8 +100,8 @@ case "${OPTION}" in
 		;;
 esac
 
-prepare_workspace
+create_workspace
 create_blob bootblob.bin || abort "Failed to create boot image"
 is_file_size_le bootblob.bin "${MAX_IMAGE_SIZE}" || abort "Boot image is too big"
-write_blob bootblob.bin "${DEVICE}" "${OPTION}" || abort "Failed to flash boot image"
-select_boot_source "${DEVICE}" "${OPTION}" || abort "Failed to enable boot source"
+write_blob bootblob.bin "${MMC_DEVICE}" "${OPTION}" || abort "Failed to flash boot image"
+select_boot_source "${MMC_DEVICE}" "${OPTION}" || abort "Failed to enable boot source"

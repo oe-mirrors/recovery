@@ -3,114 +3,22 @@
 # Copyright (C) 2014 Dream Property GmbH
 #
 
-set -e
-
-DEVICE=/dev/mtdblock2
-VMLINUX=
-
-STDOUT=/dev/null
-TEMP=
-VERBOSE=1
-
-is_blockdev()
-{
-	[ -b "${1}" ]
-}
-
-is_file()
-{
-	[ -f "${1}" ]
-}
-
-is_readable()
-{
-	[ -r "${1}" ]
-}
-
-is_readable_file()
-{
-	is_file "${1}" && is_readable "${1}"
-}
-
-is_writeable()
-{
-	[ -w "${1}" ]
-}
-
-is_writeable_blockdev()
-{
-	is_blockdev "${1}" && is_writeable "${1}"
-}
-
-is_empty()
-{
-	[ -z "${1}" ]
-}
-
-is_file_size_le()
-{
-	[ "`stat -c '%s' ${1}`" -le "${2}" ]
-}
-
-is_file_size_le_blockdev()
-{
-	is_file_size_le "${1}" "$((`sfdisk -s ${2}` * 1024))"
-}
-
-abort()
-{
-	echo "Fatal: $@"
-	exit 1
-}
-
-info()
-{
-	is_empty "${VERBOSE}" || echo "[*] $@"
-}
-
-write_sync()
-{
-	info "Writing ${1} to ${2}"
-	dd if=${1} of=${2} bs=64K conv=fsync >${STDOUT} 2>&1
-}
+source librecovery
 
 usage()
 {
-	echo "Usage: ${0} [-hqtv] [-d <device>] <vmlinuz-rescue.bin>"
-	echo "       Default: -d ${DEVICE}"
+	echo "Usage: ${0} [-hqtv] <vmlinuz-rescue.bin>"
 	exit ${1}
 }
 
-while getopts d:hqtv opt; do
-	case "${opt}" in
-		d)
-			DEVICE="${OPTARG}"
-			;;
-		q)
-			VERBOSE=
-			;;
-		t)
-			set -x
-			;;
-		v)
-			STDOUT=/dev/stdout
-			;;
-		h|?)
-			if [ "${opt}" = "h" ]; then
-				usage 0
-			else
-				usage 1
-			fi
-			;;
-	esac
-done
-
+xgetopts $@
 shift $((${OPTIND} - 1))
 [ "$#" -eq 1 ] || usage 1
-VMLINUX="${1}"
+FILENAME=`xrealpath ${1}`
 
-is_writeable_blockdev "${DEVICE}" || abort "Target block device '${DEVICE}' is not a writeable block device"
-! is_empty "${VMLINUX}" || abort "No kernel image given"
-is_readable_file "${VMLINUX}" || abort "Cannot access '${VMLINUX}'"
-is_file_size_le_blockdev "${VMLINUX}" "${DEVICE}" || abort "Rescue image is too big"
-write_sync "${VMLINUX}" "${DEVICE}" || abort "Failed to write rescue image"
+is_writable_blockdev "${RESCUE_PARTITION}" || abort "Target block device '${RESCUE_PARTITION}' is not a writable block device"
+! is_empty "${FILENAME}" || abort "No kernel image given"
+is_readable_file "${FILENAME}" || abort "Cannot access '${FILENAME}'"
+is_file_size_le_blockdev "${FILENAME}" "${RESCUE_PARTITION}" || abort "Rescue image is too big"
+create_workspace
+write_blkdev "${FILENAME}" "${RESCUE_PARTITION}" || abort "Failed to write rescue image"

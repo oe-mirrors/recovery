@@ -3,88 +3,20 @@
 # Copyright (C) 2014 Dream Property GmbH
 #
 
-set -e
-
-DEVICE=/dev/mmcblk0
-OPTION=
-
-STDOUT=/dev/null
-TEMP=
-VERBOSE=1
-
-is_blockdev()
-{
-	[ -b "${1}" ]
-}
-
-is_writeable()
-{
-	[ -w "${1}" ]
-}
-
-is_writeable_blockdev()
-{
-	is_blockdev "${1}" && is_writeable "${1}"
-}
-
-is_empty()
-{
-	[ -z "${1}" ]
-}
-
-abort()
-{
-	echo "Fatal: $@"
-	exit 1
-}
-
-info()
-{
-	is_empty "${VERBOSE}" || echo "[*] $@"
-}
-
-select_boot_source()
-{
-	info "Enabling boot source ${2}"
-	printf "opt${2}\0" | dd of=${1} bs=512 seek=64 conv=fsync >${STDOUT} 2>&1
-}
+source librecovery
 
 usage()
 {
-	echo "Usage: ${0} [-hqtv] [-d <device>] [A|B|C]"
-	echo "       Default: -d ${DEVICE}"
+	echo "Usage: ${0} [-hqtv] <A|B|C>"
 	exit ${1}
 }
 
-while getopts d:hqtv opt; do
-	case "${opt}" in
-		d)
-			DEVICE="${OPTARG}"
-			;;
-		q)
-			VERBOSE=
-			;;
-		t)
-			set -x
-			;;
-		v)
-			STDOUT=/dev/stdout
-			;;
-		h|?)
-			if [ "$opt" = "h" ]; then
-				usage 0
-			else
-				usage 1
-			fi
-			;;
-	esac
-done
-
+xgetopts $@
 shift $((${OPTIND} - 1))
 [ "$#" -eq 1 ] || usage 1
 OPTION=${1}
 
-is_writeable_blockdev "${DEVICE}" || abort "Target block device '${DEVICE}' is not a writeable block device"
+is_writable_blockdev "${MMC_DEVICE}" || abort "Target block device '${MMC_DEVICE}' is not a writable block device"
 ! is_empty "${OPTION}" || abort "No option given"
 
 case "${OPTION}" in
@@ -95,4 +27,4 @@ case "${OPTION}" in
 		;;
 esac
 
-select_boot_source "${DEVICE}" "${OPTION}" || abort "Failed to enable boot source"
+select_boot_source "${MMC_DEVICE}" "${OPTION}" || abort "Failed to enable boot source"

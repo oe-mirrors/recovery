@@ -1,10 +1,7 @@
-#!/bin/sh
 #
 # Copyright (C) 2014 Dream Property GmbH
 #
 
-BASE_URI=http://dreamboxupdate.com/download/recovery/dm7080/release
-FILENAME=dreambox-image-dm7080.tar.xz
 MMC_DEVICE=/dev/mmcblk0
 ROOT_PARTITION=/dev/mmcblk0p1
 ROOT_MOUNTPOINT=/mnt
@@ -12,6 +9,7 @@ ROOT_NAME=dreambox-rootfs
 DATA_PARTITION=/dev/mmcblk0p2
 DATA_MOUNTPOINT=/data
 DATA_NAME=dreambox-data
+RESCUE_PARTITION=/dev/mtdblock2
 RECOVERY_CACHE=${DATA_MOUNTPOINT}/.recovery
 FILESYSTEM=ext4
 
@@ -43,6 +41,11 @@ is_readable()
 	[ -r "${1}" ]
 }
 
+is_readable_blockdev()
+{
+	is_blockdev "${1}" && is_readable "${1}"
+}
+
 is_readable_file()
 {
 	is_file "${1}" && is_readable "${1}"
@@ -58,9 +61,24 @@ is_writable_blockdev()
 	is_blockdev "${1}" && is_writable "${1}"
 }
 
+is_writable_directory()
+{
+	is_directory "${1}" && is_writable "${1}"
+}
+
 is_empty()
 {
 	[ -z "${1}" ]
+}
+
+is_file_size_le()
+{
+	[ "`stat -c '%s' ${1}`" -le "${2}" ]
+}
+
+is_file_size_le_blockdev()
+{
+	is_file_size_le "${1}" "$((`sfdisk -s ${2}` * 1024))"
 }
 
 is_initrd()
@@ -240,6 +258,17 @@ unmount_cache()
 	unmount "${DATA_MOUNTPOINT}"
 }
 
+run()
+{
+	local cmd="${1}"
+	shift
+
+	info "Running '${cmd}'"
+	is_empty "$@" || info "Options '$@'"
+	chmod 755 "${cmd}" || abort "Failed to set execute permissions"
+	${cmd} $@ || abort "Failed to execute '${cmd}'"
+}
+
 run_postinsts()
 {
 	local virtfs="dev proc run sys tmp"
@@ -269,6 +298,24 @@ run_postinsts()
 assert_rescue_mode()
 {
 	is_initrd || is_nfsroot || abort "This script may only run in rescue mode!"
+}
+
+write_blkdev()
+{
+	info "Writing ${1} to ${2}"
+	xdd if=${1} of=${2} bs=64K
+}
+
+write_lba()
+{
+	info "Writing ${1} to ${2} (LBA: ${3})"
+	xdd if="${1}" of="${2}" bs=512 seek="${3}"
+}
+
+select_boot_source()
+{
+	info "Enabling boot source ${2}"
+	printf "opt${2}\0" | xdd of=${1} bs=512 seek=64
 }
 
 usage()
@@ -355,51 +402,3 @@ xtrap()
 {
 	(trap '' HUP INT TERM; exec $@) >&3 2>&4
 }
-
-xgetopts $@
-
-assert_rescue_mode
-
-is_writable_blockdev "${MMC_DEVICE}" || abort "Target block device '${MMC_DEVICE}' is not a writable block device"
-
-create_workspace
-export GNUPGHOME="${WORKSPACE}"
-
-(base64 -d > trustedkeys.gpg || abort 'Failed to write public key') << EOF
-mQENBFPo2oUBCAC6dzqe5azBCkxzj99xNfzwB4L6tHzz83zqD2KUQuuJMhO7Q2g9AHnSNQ0z1+Bz
-oX2gGX90FusBSLiCuZmNdnxlcl7KVfBe37EpYtQNGCZKlWeruCAUdJGKIyPJXDvkXCy3dj6z1ho8
-p1r3uazEbUbJyLvwjzcg0Ua1qxFjLoq/h15yDgd0NCkMStL6gwKdmReLRfE/tn0K53CVQzIeEFyn
-EW3N0tu2deiYkanHy/MM9IOIv3oQmoEWNaVsDf+gG7nUPj0QE66GOYlBugR5vNi3BorOctarQp/8
-Dh56muiqomwwewJubzsvjUjpiYXdO/3RN2gOej2+5hUCiYmvOahfABEBAAG0LkRyZWFtYm94IERN
-NzA4MCBSZWNvdmVyeSA8cmVjb3ZlcnlAZG03MDgwLmNvbT6JATgEEwECACIFAlPo2oUCGwMGCwkI
-BwMCBhUIAgkKCwQWAgMBAh4BAheAAAoJEBWob67Wz1bnUGYH/0zmTS7Gtvv97oHHnz3JSkLybDRj
-Jx/wH+vpzyCRl8rC7TlHs5GBfjoJ1Hjo4DsZqElTb8g+kg5WGzMBUUuwabRhZuf2CL7/IPKP+LWH
-t2ByZX3OgS1Q+HDLob5wlKllD9y/wwekuwS/8cgdnDH9URHCBqIt5gWQzLU1pvmQrKPXM1aMsLQj
-16vbktXNkREF/cNhWfQFQs2dOwmzNEDeuE32I6h7PYl1bFP0hCOmbkcTuibnC+tsWOJMKF1iZ8bq
-xDND9BYTwGtD2SVrddu3i4kBz6hka01ZnfSUZewpu+TrCgaD6oENfarPiC9VYfKEFi10RIPIxwRX
-s1tBOOQNKpywAgAD
-EOF
-
-mount_cache
-fetch_signed "${BASE_URI}" "${FILENAME}"
-
-if ! is_blockdev "${ROOT_PARTITION}" || ! is_blockdev "${DATA_PARTITION}"; then
-	unmount "${ROOT_MOUNTPOINT}" || abort "Failed to unmount root filesystem"
-	unmount "${DATA_MOUNTPOINT}" || abort "Failed to unmount data filesystem"
-	create_partition_table "${MMC_DEVICE}" || abort "Failed to partition disk"
-	create_filesystem "${DATA_NAME}" "${DATA_PARTITION}" || warn "Failed to create ${FILESYSTEM} filesystem '${DATA_NAME}' on '${DATA_PARTITION}'"
-	mount_cache
-fi
-
-unmount "${ROOT_MOUNTPOINT}" || abort "Failed to unmount root filesystem"
-create_filesystem "${ROOT_NAME}" "${ROOT_PARTITION}" || abort "Failed to create ${FILESYSTEM} filesystem '${ROOT_NAME}' on '${ROOT_PARTITION}'"
-safe_mount "${ROOT_PARTITION}" "${ROOT_MOUNTPOINT}" || abort "Failed to mount root filesystem"
-extract_tarball "${FILENAME}" "${ROOT_MOUNTPOINT}" || abort "Failed to extract root filesystem"
-run_postinsts "${ROOT_MOUNTPOINT}" dreambox-secondstage kernel-image || abort "Failed to run postinst scripts"
-unmount "${ROOT_MOUNTPOINT}" || warn "Failed to unmount root filesystem"
-
-update_cache "${FILENAME}"
-unmount_cache
-
-info "Initiating reboot"
-sync && reboot || warn 'Failed to initiate reboot'
