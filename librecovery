@@ -21,6 +21,21 @@ set -e
 exec 3>/dev/null
 exec 4>&2
 
+is_beneath_directory()
+{
+	local file=`xrealpath ${1}`
+	local dir=`xrealpath ${2}`
+
+	case "$file" in
+		$dir/*)
+			true
+			;;
+		*)
+			false
+			;;
+	esac
+}
+
 is_blockdev()
 {
 	[ -b "${1}" ]
@@ -149,6 +164,47 @@ create_partition_table()
 		mklabel gpt \
 		mkpart primary ext2 72MiB 1GiB \
 		mkpart primary ext2 1GiB 100% >&3 2>&4
+}
+
+create_tarball()
+{
+	local opt
+
+	case "${2}" in
+		*.tar)
+			opt=""
+			;;
+		*.gz|*.tgz|*.taz)
+			opt="-z"
+			;;
+		*.Z|*.taZ)
+			opt="-Z"
+			;;
+		*.bz2|*.tbz|*.tbz2|*.tz2)
+			opt="-j"
+			;;
+		*.lz)
+			opt="--lzip"
+			;;
+		*.lzma|*.tlz)
+			opt="--lzma"
+			;;
+		*.lzo)
+			opt="--lzop"
+			;;
+		*.xz|*.txz)
+			opt="-J"
+			;;
+		*)
+			abort "Invalid file type: ${2}"
+			;;
+	esac
+
+	create_directory "`dirname ${2}`"
+	info "Creating ${2} from ${1}"
+	(cd "${1}" && find . -type s) >sockets
+	xtar -C "${1}" ${opt} --numeric-owner --exclude-from=sockets -cf "${2}.tmp" .
+	mv "${2}.tmp" "${2}"
 }
 
 create_workspace()
