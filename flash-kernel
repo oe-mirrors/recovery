@@ -35,7 +35,7 @@ create_blob()
 	ARGS="${ARGS} -f ${VMLINUX} -t kernel -d 0x1000"
 
 	info "Creating boot image"
-	mkbootblob ${ARGS} >${STDOUT}
+	mkbootblob ${ARGS} >&3 2>&4
 }
 
 write_blob()
