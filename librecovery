@@ -20,6 +20,7 @@ set -e
 
 exec 3>/dev/null
 exec 4>&2
+exec 5>&1
 
 is_beneath_directory()
 {
@@ -135,12 +136,12 @@ abort()
 
 warn()
 {
-	echo "Warning: $@"
+	echo "Warning: $@" >&5
 }
 
 info()
 {
-	echo "[*] $@" >&3
+	echo "[*] $@" >&5
 }
 
 create_directory()
@@ -386,6 +387,7 @@ std_opt()
 		q)
 			exec 3>/dev/null
 			exec 4>/dev/null
+			exec 5>/dev/null
 			;;
 		t)
 			set -x
@@ -393,6 +395,7 @@ std_opt()
 		v)
 			exec 3>&1
 			exec 4>&2
+			exec 5>&1
 			;;
 		h|?)
 			if [ "${1}" = "h" ]; then
