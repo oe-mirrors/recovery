@@ -397,7 +397,7 @@ std_opt()
 			exec 4>&2
 			exec 5>&1
 			;;
-		h|?)
+		h|'?')
 			if [ "${1}" = "h" ]; then
 				usage 0
 			else
