@@ -204,7 +204,7 @@ create_tarball()
 	create_directory "`dirname ${2}`"
 	info "Creating ${2} from ${1}"
 	(cd "${1}" && find . -type s) >sockets
-	xtar -C "${1}" ${opt} --numeric-owner --exclude-from=sockets -cf "${2}.tmp" .
+	xtar -C "${1}" ${opt} --exclude-from=sockets -cf "${2}.tmp" .
 	mv "${2}.tmp" "${2}"
 }
 
@@ -454,7 +454,7 @@ xtar()
 		opt=""
 	fi
 
-	xtrap tar ${opt} $@
+	xtrap tar --numeric-owner ${opt} $@
 }
 
 xtrap()

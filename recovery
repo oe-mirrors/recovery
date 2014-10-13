@@ -348,7 +348,7 @@ xtar()
 		opt=""
 	fi
 
-	xtrap tar ${opt} $@
+	xtrap tar --numeric-owner ${opt} $@
 }
 
 xtrap()
