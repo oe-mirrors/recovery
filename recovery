@@ -190,7 +190,10 @@ safe_mount()
 	local dir="${2}"
 	shift 2
 
-	if ! is_mounted "${device}" "${dir}"; then
+	if is_mounted "${device}" "${dir}"; then
+		info "Remounting '${device}' to '${dir}'"
+		mount -o remount $@ "${device}" "${dir}"
+	else
 		create_directory "${dir}"
 		info "Mounting '${device}' to '${dir}'"
 		mount $@ "${device}" "${dir}" && MOUNTPOINTS="${MOUNTPOINTS}:${dir}"
