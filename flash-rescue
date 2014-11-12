@@ -21,4 +21,4 @@ is_writable_blockdev "${RESCUE_PARTITION}" || abort "Target block device '${RESC
 is_readable_file "${FILENAME}" || abort "Cannot access '${FILENAME}'"
 is_file_size_le_blockdev "${FILENAME}" "${RESCUE_PARTITION}" || abort "Rescue image is too big"
 create_workspace
-write_blkdev "${FILENAME}" "${RESCUE_PARTITION}" || abort "Failed to write rescue image"
+writespi ${FILENAME} || write_blkdev "${FILENAME}" "${RESCUE_PARTITION}" || abort "Failed to write rescue image"

@@ -4,10 +4,19 @@ prefix ?= /usr/local
 exec_prefix ?= $(prefix)
 sbindir ?= $(exec_prefix)/sbin
 
-TARGETS := backup-tarball flash-kernel flash-rescue flash-ssbl flash-tarball help librecovery recovery run-recovery select-boot-source to-the-rescue
+override CFLAGS := $(CFLAGS) -Wall -std=c99
+override CPPFLAGS := $(CPPFLAGS) -DNDEBUG
 
-default:
+SCRIPTS := backup-tarball flash-kernel flash-rescue flash-ssbl flash-tarball help librecovery recovery run-recovery select-boot-source to-the-rescue
+TARGETS := writespi
 
-install:
+default: $(TARGETS)
+
+writespi: writespi.c
+
+clean:
+	$(RM) $(TARGETS)
+
+install: $(TARGETS)
 	install -d $(DESTDIR)$(sbindir)
-	install -m 755 $(TARGETS) $(DESTDIR)$(sbindir)
+	install -m 755 $(SCRIPTS) $(TARGETS) $(DESTDIR)$(sbindir)
