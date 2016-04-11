@@ -1,7 +1,7 @@
 /*
  * writespi.c
  *
- * Copyright (C) 2014 Dream Property GmbH, Germany
+ * Copyright (C) 2016 Dream Property GmbH, Germany
  *                    http://www.dream-multimedia-tv.de/
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -35,6 +35,8 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+
+#define ARRAY_SIZE(x)		(sizeof((x)) / sizeof(*(x)))
 
 #define BCM_PHYSICAL_OFFSET	0x10000000
 #define BCM_CHIP_FAMILY_ID	0x00404000
@@ -72,6 +74,24 @@ enum spi_cmd {
 #define SPI_RDSR_BP2		(1 << 4)
 #define SPI_RDSR_BP3		(1 << 5)
 #define SPI_RDSR_SRWD		(1 << 7)
+
+#define KiB(x)	((x) * 1024)
+#define MiB(x)	((x) * 1024 * 1024)
+
+struct flash_part {
+	char *name;
+	bool rdonly;
+	unsigned int size;
+};
+
+static const struct flash_part flash_map[] = {
+	{ "cfe", true, MiB(2) },
+	{ "macadr", true, KiB(256) },
+	{ "nvram", true, KiB(256) },
+	{ "ssblconf", true, KiB(256) },
+	{ "reserved", true, KiB(256) },
+	{ "kernel", false, MiB(13) },
+};
 
 static inline void cpu_relax(void)
 {
@@ -191,7 +211,7 @@ static void spi_exit(void)
 
 static int spirom_read_status(void)
 {
-	unsigned char cmd[] = { SPI_CMD_RDID, 0 };
+	unsigned char cmd[] = { SPI_CMD_RDSR, 0 };
 
 	spi_write_bytes(cmd, cmd, sizeof(cmd));
 
@@ -262,12 +282,12 @@ static bool spirom_read_id(void)
 	printf("Memory type    : %02x\n", cmd[2]);
 	printf("Memory density : %02x\n", cmd[3]);
 
-	if (cmd[1] != 0xc2) {
+	if (cmd[1] != 0xef) {
 		fprintf(stderr, "wrong manufacturer id\n");
 		return false;
 	}
 
-	if (cmd[2] != 0x20) {
+	if (cmd[2] != 0x40) {
 		fprintf(stderr, "wrong memory type\n");
 		return false;
 	}
@@ -401,36 +421,23 @@ static void bitmap_free(unsigned long *bitmap)
 	free(bitmap);
 }
 
-static bool write_file(const char *filename, size_t start)
+static bool write_file(int fd, size_t start, size_t size)
 {
 	unsigned char *mem = MAP_FAILED;
 	unsigned long *bitmap = NULL;
 	size_t nsectors, nchanged = 0;
 	const unsigned char *src;
 	size_t i, pos, end;
-	struct stat st;
 	bool ret = false;
-	int fd;
 
-	fd = open(filename, O_RDONLY);
-	if (fd < 0) {
-		perror(filename);
-		goto err;
-	}
-
-	if (fstat(fd, &st) < 0) {
-		perror("fstat");
-		goto err;
-	}
-
-	mem = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
+	mem = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
 	if (mem == MAP_FAILED) {
 		perror("mmap");
 		goto err;
 	}
 
-	end = start + st.st_size;
-	nsectors = (st.st_size + SPI_SECTOR_SIZE - 1) / SPI_SECTOR_SIZE;
+	end = start + size;
+	nsectors = (size + SPI_SECTOR_SIZE - 1) / SPI_SECTOR_SIZE;
 	bitmap = bitmap_alloc(nsectors);
 
 	printf("comparing %zu sectors...\n", nsectors);
@@ -522,19 +529,61 @@ static bool write_file(const char *filename, size_t start)
 err:
 	bitmap_free(bitmap);
 	if (mem != MAP_FAILED)
-		munmap(mem, st.st_size);
-	if (fd != -1)
-		close(fd);
+		munmap(mem, size);
 	return ret;
 }
 
 int main(int argc, char **argv)
 {
+	const char *partname = "kernel";
+	const struct flash_part *part = NULL;
+	unsigned int offset;
+	unsigned int i;
+	struct stat st;
 	int ret = 1;
+	int fd;
 
 	if (argc < 2) {
-		fprintf(stderr, "usage: %s <filename>\n", argv[0]);
+		fprintf(stderr, "usage: %s <filename> [<partition>]\n", argv[0]);
 		return 1;
+	}
+
+	fd = open(argv[1], O_RDONLY);
+	if (fd < 0) {
+		perror(argv[1]);
+		return 1;
+	}
+
+	if (fstat(fd, &st) < 0) {
+		perror("fstat");
+		goto err;
+	}
+
+	if (argc >= 3)
+		partname = argv[2];
+
+	offset = 0;
+	for (i = 0; i < ARRAY_SIZE(flash_map); i++) {
+		if (!strcmp(flash_map[i].name, partname)) {
+			part = &flash_map[i];
+			break;
+		}
+		offset += flash_map[i].size;
+	}
+
+	if (part == NULL) {
+		fprintf(stderr, "Invalid partition: %s\n", partname);
+		goto err;
+	}
+
+	if (part->rdonly) {
+		fprintf(stderr, "Sorry, writing to this partition is not allowed.\n");
+		goto err;
+	}
+
+	if (part->size < st.st_size) {
+		fprintf(stderr, "Input file is too big (max. %u bytes)\n", part->size);
+		goto err;
 	}
 
 	signal(SIGHUP, SIG_IGN);
@@ -562,7 +611,7 @@ int main(int argc, char **argv)
 		goto err;
 	}
 
-	if (write_file(argv[1], 1024 * 1024))
+	if (write_file(fd, offset, st.st_size))
 		ret = 0;
 err:
 	spi_exit();
@@ -570,5 +619,6 @@ err:
 	if (devmem >= 0)
 		close(devmem);
 
+	close(fd);
 	return ret;
 }

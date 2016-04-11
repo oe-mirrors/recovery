@@ -1,11 +1,11 @@
 #!/bin/sh
 #
-# Copyright (C) 2014 Dream Property GmbH
+# Copyright (C) 2016 Dream Property GmbH
 #
 
 source librecovery
 
-BASE_URI=http://dreamboxupdate.com/download/recovery/dm7080/release
+BASE_URI=http://dreamboxupdate.com/download/recovery/dm520/release
 FILENAME=recovery
 
 xgetopts $@
@@ -15,23 +15,20 @@ create_workspace
 export GNUPGHOME="${WORKSPACE}"
 
 (base64 -d > trustedkeys.gpg || abort 'Failed to write public key') << EOF
-mQENBFPo2oUBCAC6dzqe5azBCkxzj99xNfzwB4L6tHzz83zqD2KUQuuJMhO7Q2g9AHnSNQ0z1+Bz
-oX2gGX90FusBSLiCuZmNdnxlcl7KVfBe37EpYtQNGCZKlWeruCAUdJGKIyPJXDvkXCy3dj6z1ho8
-p1r3uazEbUbJyLvwjzcg0Ua1qxFjLoq/h15yDgd0NCkMStL6gwKdmReLRfE/tn0K53CVQzIeEFyn
-EW3N0tu2deiYkanHy/MM9IOIv3oQmoEWNaVsDf+gG7nUPj0QE66GOYlBugR5vNi3BorOctarQp/8
-Dh56muiqomwwewJubzsvjUjpiYXdO/3RN2gOej2+5hUCiYmvOahfABEBAAG0LkRyZWFtYm94IERN
-NzA4MCBSZWNvdmVyeSA8cmVjb3ZlcnlAZG03MDgwLmNvbT6JATgEEwECACIFAlPo2oUCGwMGCwkI
-BwMCBhUIAgkKCwQWAgMBAh4BAheAAAoJEBWob67Wz1bnUGYH/0zmTS7Gtvv97oHHnz3JSkLybDRj
-Jx/wH+vpzyCRl8rC7TlHs5GBfjoJ1Hjo4DsZqElTb8g+kg5WGzMBUUuwabRhZuf2CL7/IPKP+LWH
-t2ByZX3OgS1Q+HDLob5wlKllD9y/wwekuwS/8cgdnDH9URHCBqIt5gWQzLU1pvmQrKPXM1aMsLQj
-16vbktXNkREF/cNhWfQFQs2dOwmzNEDeuE32I6h7PYl1bFP0hCOmbkcTuibnC+tsWOJMKF1iZ8bq
-xDND9BYTwGtD2SVrddu3i4kBz6hka01ZnfSUZewpu+TrCgaD6oENfarPiC9VYfKEFi10RIPIxwRX
-s1tBOOQNKpywAgAD
+mQENBFcLsf0BCADDo4SxnQwl16cWSYnTwwp+E6ZvdhY3x9yw7b//MUDELtKkEp7wZ+AtHDYd+jzJ
+Syc+n1m4MkArNUzCdseFJJAYEsNEjZ6ZkoMSQ/GZsIKi2IYT0LXN+9c2ZLLZstNZ2201KwqjFkpE
+GXSn7VeLAvm82UgMaECY+4vJ5K3XtsLX6onCfidKy4qI8si4CTLylkDegGQ035FlkzqMKA8flafd
+RGiEWO/2o2ZdYgdjOYQq6W2MaI6zgDzg1V2HMXSweIxnhn8W4iZF80nLTPihoe+p3FRKX0d2G4B0
+wM49BTgfOgdcu3d3xZBRndOUXq0biga814jYLm3o+DqCmfmt3fsVABEBAAG0NERyZWFtYm94IERN
+NTIwIFJlY292ZXJ5IDxkbTUyMEByZWNvdmVyeS5kcmVhbWJveC5kZT6JATgEEwECACIFAlcLsf0C
+GwMGCwkIBwMCBhUIAgkKCwQWAgMBAh4BAheAAAoJENzmv7ygdoPTTw0IAIN+WQMjAQGbSEo6DP41
+U8g3u3gRVxBWpAPeE8wsq3wMjmDK4kcCohnWzJSqb7O4XFDUO0fsg0InojpYCIvfhSK+7eohwIaJ
+ilkdM37nUY7TioFY3pOx63ZzDAJ5SsirU26CIxB+hHWueaS/XsGinodzxl6H9/l8I33U/2DN1oUe
+y9JcHVNxdBRtSNZMYyZXlA+4LrkDDN6/c6kpIG2uZEYOH0WlP+Mqu9G81yYYKiK9MTlsYHcCoSlV
+XR8VVsVBxKkfSsoWLMkhE7aEFqq+FeVjcrRyc7R+QGhdzwq9gK50iXpr+YxfHJNn2FML185NGwyp
+Gnvzh5YpHKnihOS+J7c=
 EOF
 
-mount_cache
 fetch_signed "${BASE_URI}" "${FILENAME}"
-update_cache "${FILENAME}"
-unmount_cache
 
 run "./${FILENAME}" $@

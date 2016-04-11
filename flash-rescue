@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (C) 2014 Dream Property GmbH
+# Copyright (C) 2016 Dream Property GmbH
 #
 
 source librecovery
@@ -16,9 +16,6 @@ shift $((${OPTIND} - 1))
 [ "$#" -eq 1 ] || usage 1
 FILENAME=`xrealpath ${1}`
 
-is_writable_blockdev "${RESCUE_PARTITION}" || abort "Target block device '${RESCUE_PARTITION}' is not a writable block device"
-! is_empty "${FILENAME}" || abort "No kernel image given"
+! is_empty "${FILENAME}" || abort "No rescue image given"
 is_readable_file "${FILENAME}" || abort "Cannot access '${FILENAME}'"
-is_file_size_le_blockdev "${FILENAME}" "${RESCUE_PARTITION}" || abort "Rescue image is too big"
-create_workspace
-writespi ${FILENAME} || write_blkdev "${FILENAME}" "${RESCUE_PARTITION}" || abort "Failed to write rescue image"
+writespi ${FILENAME} kernel || abort "Failed to write rescue image"

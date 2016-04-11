@@ -1,107 +1,26 @@
 #!/bin/sh
 #
-# Copyright (C) 2014 Dream Property GmbH
+# Copyright (C) 2016 Dream Property GmbH
 #
 
 source librecovery
 
-MEM_SIZE=0x10000000
-ARC_IMAGES=/usr/share/fastboot/lcd_anim.bin
-MAX_IMAGE_SIZE=$((32 * 1024 * 1024))
-OPTION=A
-VMLINUX=
-CMDLINE=
-INITRD=
-
-create_blob()
-{
-	ARGS="-m ${MEM_SIZE} -o ${1}"
-	INDEX=0
-	IFS=:
-	for FILE in ${ARC_IMAGES}; do
-		if is_readable_file "${FILE}"; then
-			ARGS="${ARGS} -f ${FILE} -t arc -i ${INDEX}"
-			INDEX=$((${INDEX} + 1))
-		fi
-	done
-	unset IFS
-	if is_readable_file "${INITRD}"; then
-		ARGS="${ARGS} -f ${INITRD} -t initrd"
-	fi
-	if ! is_empty "${CMDLINE}"; then
-		echo -n "${CMDLINE}" > cmdline.txt
-		ARGS="${ARGS} -f cmdline.txt -t cmdline"
-	fi
-	ARGS="${ARGS} -f ${VMLINUX} -t kernel -d 0x1000"
-
-	info "Creating boot image"
-	mkbootblob ${ARGS} >&3 2>&4
-}
-
-write_blob()
-{
-	case "${3}" in
-		A)
-			write_lba "${1}" "${2}" 16384
-			;;
-		B)
-			write_lba "${1}" "${2}" 81920
-			;;
-	esac
-}
-
 usage()
 {
-	echo "Usage: ${0} [-hqtv] [-a <arc images>] [-c <cmdline>] [-i <initrd>] [-m <mem-size>] [-o A|B] <vmlinux.bin>"
-	echo "       Default: -a ${ARC_IMAGES} -m ${MEM_SIZE} -o ${OPTION}"
+	echo "Usage: ${0} [-hqtv] <vmlinux.gz>"
 	exit ${1}
 }
 
-while getopts a:c:hi:m:o:qtv opt; do
-	case "${opt}" in
-		a)
-			ARC_IMAGES="${OPTARG}"
-			;;
-		c)
-			CMDLINE="${OPTARG}"
-			;;
-		i)
-			INITRD="${OPTARG}"
-			;;
-		m)
-			MEM_SIZE="${OPTARG}"
-			;;
-		o)
-			OPTION="${OPTARG}"
-			;;
-	esac
-	std_opt "${opt}"
-done
-
+xgetopts $@
 shift $((${OPTIND} - 1))
 [ "$#" -eq 1 ] || usage 1
 VMLINUX=`xrealpath ${1}`
 
-is_writable_blockdev "${MMC_DEVICE}" || abort "Target block device '${MMC_DEVICE}' is not a writable block device"
-IFS=:
-for FILE in ${ARC_IMAGES}; do
-	is_readable_file "${FILE}" || abort "Cannot access '${FILE}'"
-done
-unset IFS
-is_empty "${INITRD}" || is_readable_file "${INITRD}" || abort "Cannot access '${INITRD}'"
+MTD_DEVICE=/dev/mtd2
+
+is_writable_chardev "${MTD_DEVICE}" || abort "Target device '${MTD_DEVICE}' is not a writable character device"
 ! is_empty "${VMLINUX}" || abort "No kernel image given"
 is_readable_file "${VMLINUX}" || abort "Cannot access '${VMLINUX}'"
 
-case "${OPTION}" in
-	A|B)
-		;;
-	*)
-		abort "Invalid boot option: ${OPTION}"
-		;;
-esac
-
-create_workspace
-create_blob bootblob.bin || abort "Failed to create boot image"
-is_file_size_le bootblob.bin "${MAX_IMAGE_SIZE}" || abort "Boot image is too big"
-write_blob bootblob.bin "${MMC_DEVICE}" "${OPTION}" || abort "Failed to flash boot image"
-select_boot_source "${MMC_DEVICE}" "${OPTION}" || abort "Failed to enable boot source"
+erase "${MTD_DEVICE}" || abort "Failed to erase ${MTD_DEVICE}"
+write_nand "${MTD_DEVICE}" "${VMLINUX}" || abort "Failed to flash kernel image"
