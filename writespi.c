@@ -41,10 +41,15 @@
 #define BCM_PHYSICAL_OFFSET	0x10000000
 #define BCM_CHIP_FAMILY_ID	0x00404000
 
+#define HIF_MSPI_BCM73625	0x00413200
 #define HIF_MSPI_BCM7435	0x0041d400
 #define HIF_MSPI_SIZE		0x188
+#define HIF_SPI_INTR2_BCM73625	0x00411d00
 #define HIF_SPI_INTR2_BCM7435	0x0041bd00
 #define HIF_SPI_INTR2_SIZE	0x30
+
+#define GIO_BCM73625		0x00406500
+#define GIO_SIZE		0xa0
 
 #define SPI_SECTOR_SIZE	4096
 #define SPI_PAGE_SIZE	256
@@ -67,6 +72,11 @@ enum spi_cmd {
 	SPI_CMD_BE		= 0xd8,
 };
 
+enum manuf_id {
+	MANUF_ID_EON = 0x1c,
+	MANUF_ID_WINBOND = 0xef,
+};
+
 #define SPI_RDSR_WIP		(1 << 0)
 #define SPI_RDSR_WEL		(1 << 1)
 #define SPI_RDSR_BP0		(1 << 2)
@@ -85,11 +95,11 @@ struct flash_part {
 };
 
 static const struct flash_part flash_map[] = {
-	{ "cfe", true, MiB(2) },
-	{ "macadr", true, KiB(256) },
+	{ "fsbl", true, MiB(1) },
+	{ "ssbl", true, MiB(1) },
 	{ "nvram", true, KiB(256) },
 	{ "ssblconf", true, KiB(256) },
-	{ "reserved", true, KiB(256) },
+	{ "reserved", true, KiB(512) },
 	{ "kernel", false, MiB(13) },
 };
 
@@ -160,10 +170,33 @@ static void spi_write_bytes(const unsigned char *out, unsigned char *in, size_t 
 	}
 }
 
+static bool dm520_setup_gpio(void)
+{
+	volatile unsigned long *mmio_gpio;
+
+	mmio_gpio = ioremap(BCM_PHYSICAL_OFFSET + GIO_BCM73625, GIO_SIZE);
+	if (mmio_gpio == NULL)
+		return false;
+
+	/* set SPI_SELECT output */
+	mmio_gpio[0x48/4] &= ~(1<<21);  //IO_DIR set output
+	/* select onboard spirom (in any case) */
+	mmio_gpio[0x44/4] |= (1<<21);   //IO_DATA
+
+	iounmap(mmio_gpio, GIO_SIZE);
+	return true;
+}
+
+static unsigned long hif_spi_intr2_enable;
+
 static bool spi_init(void)
 {
 	volatile unsigned long *family_id;
 	unsigned long chip_id;
+	unsigned long hif_mspi;
+	unsigned long hif_spi_intr2;
+	unsigned long hif_spi_intr2_disable;
+	unsigned char spcr;
 
 	family_id = ioremap(BCM_PHYSICAL_OFFSET + BCM_CHIP_FAMILY_ID, 4);
 	if (family_id == NULL)
@@ -173,25 +206,44 @@ static bool spi_init(void)
 	chip_id = (chip_id >> 28 ? chip_id >> 16 : chip_id >> 8);
 	iounmap(family_id, 4);
 
-	if (chip_id != 0x7435)
+	switch (chip_id) {
+	case 0x73625:
+		hif_mspi = HIF_MSPI_BCM73625;
+		hif_spi_intr2 = HIF_SPI_INTR2_BCM73625;
+		hif_spi_intr2_disable = 0x3f;
+		hif_spi_intr2_enable = 0x3f;
+		spcr = 5;
+		if (!dm520_setup_gpio())
+			return false;
+		break;
+	case 0x7435:
+		hif_mspi = HIF_MSPI_BCM7435;
+		hif_spi_intr2 = HIF_SPI_INTR2_BCM7435;
+		hif_spi_intr2_disable = 0x7f;
+		hif_spi_intr2_enable = 0x20;
+		spcr = 6;
+		break;
+	default:
+		fprintf(stderr, "Unsupported chip: %#lx\n", chip_id);
 		return false;
+	}
 
-	mmio_spi = ioremap(BCM_PHYSICAL_OFFSET + HIF_MSPI_BCM7435, HIF_MSPI_SIZE);
+	mmio_spi = ioremap(BCM_PHYSICAL_OFFSET + hif_mspi, HIF_MSPI_SIZE);
 	if (mmio_spi == NULL)
 		return false;
 
-	hif_spi_intr = ioremap(BCM_PHYSICAL_OFFSET + HIF_SPI_INTR2_BCM7435, HIF_SPI_INTR2_SIZE);
+	hif_spi_intr = ioremap(BCM_PHYSICAL_OFFSET + hif_spi_intr2, HIF_SPI_INTR2_SIZE);
 	if (hif_spi_intr == NULL)
 		return false;
 
 	/* disable kernel irq handler */
-	hif_spi_intr[0x10/4] = 0x7f;
+	hif_spi_intr[0x10/4] = hif_spi_intr2_disable;
 
 	mmio_spi[0x180] = 1;
 	mmio_spi[0x20] = 0;
 
 			/* set baudrate */
-	mmio_spi[0] = 0x6;          // SPCR, 8 = 1.6Mhz
+	mmio_spi[0] = spcr;          // SPCR, 8 = 1.6Mhz
 	mmio_spi[4] = (1<<7);     // SPCR0_MSB, spi master, 8 bits, clock polarity/phase
 
 	return true;
@@ -272,6 +324,8 @@ static bool spirom_reset(void)
 static bool spirom_read_id(void)
 {
 	unsigned char cmd[] = { SPI_CMD_RDID, 0, 0, 0 };
+	unsigned char mem_type;
+	unsigned char mem_density;
 
 	if (!spirom_wait_ready(1000))
 		return false;
@@ -282,17 +336,26 @@ static bool spirom_read_id(void)
 	printf("Memory type    : %02x\n", cmd[2]);
 	printf("Memory density : %02x\n", cmd[3]);
 
-	if (cmd[1] != 0xef) {
+	switch (cmd[1]) {
+	case MANUF_ID_EON:
+		mem_type = 0x70;
+		mem_density = 0x18;
+		break;
+	case MANUF_ID_WINBOND:
+		mem_type = 0x40;
+		mem_density = 0x18;
+		break;
+	default:
 		fprintf(stderr, "wrong manufacturer id\n");
 		return false;
 	}
 
-	if (cmd[2] != 0x40) {
+	if (cmd[2] != mem_type) {
 		fprintf(stderr, "wrong memory type\n");
 		return false;
 	}
 
-	if (cmd[3] != 0x18) {
+	if (cmd[3] != mem_density) {
 		fprintf(stderr, "wrong memory density\n");
 		return false;
 	}
