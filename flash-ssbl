@@ -16,8 +16,6 @@ shift $((${OPTIND} - 1))
 [ "$#" -eq 1 ] || usage 1
 FILENAME=`xrealpath ${1}`
 
-is_writable_blockdev "${MMC_DEVICE}" || abort "Target block device '${MMC_DEVICE}' is not a writable block device"
 ! is_empty "${FILENAME}" || abort "No bootloader image given"
 is_readable_file "${FILENAME}" || abort "Cannot access '${FILENAME}'"
-
 writespi ${FILENAME} ssbl || abort "Failed to write bootloader image"
