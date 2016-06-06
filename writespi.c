@@ -96,7 +96,7 @@ struct flash_part {
 
 static const struct flash_part flash_map[] = {
 	{ "fsbl", true, MiB(1) },
-	{ "ssbl", true, MiB(1) },
+	{ "ssbl", false, MiB(1) },
 	{ "nvram", true, KiB(256) },
 	{ "ssblconf", true, KiB(256) },
 	{ "reserved", true, KiB(512) },
