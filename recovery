@@ -200,7 +200,7 @@ safe_mount()
 	else
 		create_directory "${dir}"
 		info "Mounting '${device}' to '${dir}'"
-		mount $@ "${device}" "${dir}" && MOUNTPOINTS="${MOUNTPOINTS}:${dir}"
+		mount $@ "${device}" "${dir}" && MOUNTPOINTS="${dir}:${MOUNTPOINTS}"
 	fi
 }
 
