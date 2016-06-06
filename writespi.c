@@ -486,12 +486,18 @@ static void bitmap_free(unsigned long *bitmap)
 
 static bool write_file(int fd, size_t start, size_t size)
 {
+	unsigned char sector0[SPI_SECTOR_SIZE];
+	unsigned char sector1[SPI_SECTOR_SIZE];
 	unsigned char *mem = MAP_FAILED;
-	unsigned long *bitmap = NULL;
+	unsigned long *need_erase = NULL;
+	unsigned long *need_write = NULL;
 	size_t nsectors, nchanged = 0;
 	const unsigned char *src;
 	size_t i, pos, end;
 	bool ret = false;
+
+	memset(sector0, 0x00, SPI_SECTOR_SIZE);
+	memset(sector1, 0xff, SPI_SECTOR_SIZE);
 
 	mem = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
 	if (mem == MAP_FAILED) {
@@ -501,7 +507,8 @@ static bool write_file(int fd, size_t start, size_t size)
 
 	end = start + size;
 	nsectors = (size + SPI_SECTOR_SIZE - 1) / SPI_SECTOR_SIZE;
-	bitmap = bitmap_alloc(nsectors);
+	need_erase = bitmap_alloc(nsectors);
+	need_write = bitmap_alloc(nsectors);
 
 	printf("comparing %zu sectors...\n", nsectors);
 
@@ -513,7 +520,10 @@ static bool write_file(int fd, size_t start, size_t size)
 
 		spirom_read(pos, sector, len);
 		if (memcmp(sector, src, len)) {
-			bitmap_set(bitmap, i);
+			if (memcmp(src, sector0, len) && memcmp(sector, sector1, len))
+				bitmap_set(need_erase, i);
+			if (memcmp(src, sector1, len))
+				bitmap_set(need_write, i);
 			nchanged++;
 		}
 
@@ -536,7 +546,7 @@ static bool write_file(int fd, size_t start, size_t size)
 
 	pos = start;
 	for (i = 0; i < nsectors; i++) {
-		if (bitmap_test(bitmap, i)) {
+		if (bitmap_test(need_erase, i)) {
 			if (!spirom_sector_erase(pos)) {
 				fprintf(stderr, "sector erase failed\n");
 				goto err;
@@ -551,7 +561,7 @@ static bool write_file(int fd, size_t start, size_t size)
 	src = mem;
 	pos = start;
 	for (i = 0; i < nsectors; i++) {
-		if (bitmap_test(bitmap, i)) {
+		if (bitmap_test(need_write, i)) {
 			size_t len = MIN(end - pos, SPI_SECTOR_SIZE);
 			size_t offset;
 			for (offset = 0; offset < len; offset += SPI_PAGE_SIZE) {
@@ -569,7 +579,7 @@ static bool write_file(int fd, size_t start, size_t size)
 	src = mem;
 	pos = start;
 	for (i = 0; i < nsectors; i++) {
-		if (bitmap_test(bitmap, i)) {
+		if (bitmap_test(need_erase, i) || bitmap_test(need_write, i)) {
 			unsigned char sector[SPI_SECTOR_SIZE];
 			size_t len = MIN(end - pos, SPI_SECTOR_SIZE);
 
@@ -590,7 +600,8 @@ static bool write_file(int fd, size_t start, size_t size)
 	printf("flash done\n");
 	ret = true;
 err:
-	bitmap_free(bitmap);
+	bitmap_free(need_write);
+	bitmap_free(need_erase);
 	if (mem != MAP_FAILED)
 		munmap(mem, size);
 	return ret;
