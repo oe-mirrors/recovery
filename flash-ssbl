@@ -1,11 +1,9 @@
 #!/bin/sh
 #
-# Copyright (C) 2014 Dream Property GmbH
+# Copyright (C) 2016 Dream Property GmbH
 #
 
 source librecovery
-
-MAX_IMAGE_SIZE=$((4 * 1024 * 1024))
 
 usage()
 {
@@ -21,7 +19,5 @@ FILENAME=`xrealpath ${1}`
 is_writable_blockdev "${MMC_DEVICE}" || abort "Target block device '${MMC_DEVICE}' is not a writable block device"
 ! is_empty "${FILENAME}" || abort "No bootloader image given"
 is_readable_file "${FILENAME}" || abort "Cannot access '${FILENAME}'"
-is_file_size_le "${FILENAME}" "${MAX_IMAGE_SIZE}" || abort "Boot image is too big"
 
-create_workspace
-write_lba "${FILENAME}" "${MMC_DEVICE}" 8192 || abort "Failed to flash boot image"
+writespi ${FILENAME} ssbl || abort "Failed to write bootloader image"
