@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (C) 2014 Dream Property GmbH
+# Copyright (C) 2016 Dream Property GmbH
 #
 
 source librecovery
@@ -23,6 +23,9 @@ shift $((${OPTIND} - 1))
 assert_rescue_mode
 create_workspace
 
+if ! is_chardev "${UBI_DEVICE}"; then
+	attach_ubi_device "${MTD_DEVICE}" || abort "Failed to attach ${MTD_DEVICE} to UBI"
+fi
 safe_mount "${ROOT_PARTITION}" "${ROOT_MOUNTPOINT}" -o ro || abort "Failed to mount root filesystem"
 if is_beneath_directory "${FILENAME}" "${DATA_MOUNTPOINT}"; then
 	safe_mount "${DATA_PARTITION}" "${DATA_MOUNTPOINT}" || abort "Failed to mount data filesystem"
