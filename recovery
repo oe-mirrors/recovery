@@ -12,9 +12,9 @@ UBI_VOL_ID=0
 ROOT_PARTITION=${UBI_DEVICE}_${UBI_VOL_ID}
 ROOT_MOUNTPOINT=/mnt
 ROOT_NAME=dreambox-rootfs
+DATA_NAME=dreambox-data
 DATA_PARTITION=/dev/disk/by-label/${DATA_NAME}
 DATA_MOUNTPOINT=/data
-DATA_NAME=dreambox-data
 RECOVERY_CACHE=${DATA_MOUNTPOINT}/.recovery
 FILESYSTEM=ubifs
 
