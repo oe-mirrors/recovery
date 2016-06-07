@@ -12,6 +12,10 @@ UBI_VOL_ID=0
 ROOT_PARTITION=${UBI_DEVICE}_${UBI_VOL_ID}
 ROOT_MOUNTPOINT=/mnt
 ROOT_NAME=dreambox-rootfs
+DATA_PARTITION=/dev/disk/by-label/${DATA_NAME}
+DATA_MOUNTPOINT=/data
+DATA_NAME=dreambox-data
+RECOVERY_CACHE=${DATA_MOUNTPOINT}/.recovery
 FILESYSTEM=ubifs
 
 MOUNTPOINTS=
@@ -181,11 +185,28 @@ verify()
 	gpgv -q --ignore-time-conflict "${1}.sig" "${1}" >&3 2>&4
 }
 
+files_equal()
+{
+	cmp -s "${1}" "${2}"
+}
+
 fetch_signed()
 {
-	fetch "${1}" "${2}.sig" || abort "Failed to obtain signature '${2}.sig'"
-	fetch "${1}" "${2}" || abort "Failed to download '${2}'"
-	verify "${2}" || abort 'Failed to verify signature'
+	fetch "${1}" "${2}.sig" || true
+
+	if is_file "${RECOVERY_CACHE}/${2}" && is_file "${RECOVERY_CACHE}/${2}.sig"; then
+		if ! is_file "${2}.sig" || files_equal "${2}.sig" "${RECOVERY_CACHE}/${2}.sig"; then
+			info "Copying '${2}' from local storage"
+			xcp "${RECOVERY_CACHE}/${2}.sig" "${2}.sig"
+			xcp "${RECOVERY_CACHE}/${2}" "${2}"
+		fi
+	fi
+
+	is_file "${2}.sig" || abort "Failed to obtain signature '${2}.sig'"
+	is_file "${2}" && verify "${2}" || {
+		fetch "${1}" "${2}" || abort "Failed to download '${2}'"
+		verify "${2}" || abort 'Failed to verify signature'
+	}
 }
 
 safe_mount()
@@ -210,6 +231,41 @@ unmount()
 		info "Unmounting '${1}'"
 		umount "${1}" || mount -o remount,ro "${1}"
 	fi
+}
+
+mount_cache()
+{
+	if is_blockdev "${DATA_PARTITION}"; then
+		safe_mount "${DATA_PARTITION}" "${DATA_MOUNTPOINT}" -o ro || warn "Failed to mount data filesystem"
+	fi
+}
+
+cache_changed()
+{
+	is_mountpoint "${DATA_MOUNTPOINT}" && ! cmp -s "${RECOVERY_CACHE}/${1}.sig" "${1}.sig"
+}
+
+remount_cache_rw()
+{
+	is_mountpoint "${DATA_MOUNTPOINT}" && info "Remounting '${DATA_MOUNTPOINT}' (rw)" && \
+		mount -o remount,rw "${DATA_MOUNTPOINT}" && is_writable "${DATA_MOUNTPOINT}"
+}
+
+update_cache()
+{
+	if cache_changed "${1}" && remount_cache_rw; then
+		create_directory "${RECOVERY_CACHE}"
+		if is_directory "${RECOVERY_CACHE}"; then
+			info "Updating recovery cache"
+			xcp "${1}" "${RECOVERY_CACHE}/${1}" || true
+			xcp "${1}.sig" "${RECOVERY_CACHE}/${1}.sig" || true
+		fi
+	fi
+}
+
+unmount_cache()
+{
+	unmount "${DATA_MOUNTPOINT}"
 }
 
 run_postinsts()
@@ -354,6 +410,7 @@ XR8VVsVBxKkfSsoWLMkhE7aEFqq+FeVjcrRyc7R+QGhdzwq9gK50iXpr+YxfHJNn2FML185NGwyp
 Gnvzh5YpHKnihOS+J7c=
 EOF
 
+mount_cache
 fetch_signed "${BASE_URI}" "${FILENAME}"
 
 if ! is_chardev "${UBI_DEVICE}" && ! attach_ubi_device "${MTD_DEVICE}"; then
@@ -373,6 +430,9 @@ safe_mount "${ROOT_PARTITION}" "${ROOT_MOUNTPOINT}" || abort "Failed to mount ro
 extract_tarball "${FILENAME}" "${ROOT_MOUNTPOINT}" || abort "Failed to extract root filesystem"
 run_postinsts "${ROOT_MOUNTPOINT}" dreambox-secondstage kernel-image || abort "Failed to run postinst scripts"
 unmount "${ROOT_MOUNTPOINT}" || warn "Failed to unmount root filesystem"
+
+update_cache "${FILENAME}"
+unmount_cache
 
 info "Initiating reboot"
 sync && reboot || warn 'Failed to initiate reboot'

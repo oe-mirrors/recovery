@@ -29,6 +29,9 @@ XR8VVsVBxKkfSsoWLMkhE7aEFqq+FeVjcrRyc7R+QGhdzwq9gK50iXpr+YxfHJNn2FML185NGwyp
 Gnvzh5YpHKnihOS+J7c=
 EOF
 
+mount_cache
 fetch_signed "${BASE_URI}" "${FILENAME}"
+update_cache "${FILENAME}"
+unmount_cache
 
 run "./${FILENAME}" $@
