@@ -27,6 +27,11 @@ exec 3>/dev/null
 exec 4>&2
 exec 5>&1
 
+is_blockdev()
+{
+	[ -b "${1}" ]
+}
+
 is_chardev()
 {
 	[ -c "${1}" ]
