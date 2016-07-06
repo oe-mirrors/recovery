@@ -95,13 +95,18 @@ struct flash_part {
 	unsigned int size;
 };
 
-static const struct flash_part flash_map[] = {
+static const struct flash_part flash_map_73625[] = {
 	{ "fsbl", true, MiB(1) },
 	{ "ssbl", false, MiB(1) },
 	{ "nvram", true, KiB(256) },
 	{ "ssblconf", true, KiB(256) },
 	{ "reserved", true, KiB(512) },
 	{ "kernel", false, MiB(13) },
+};
+
+static const struct flash_part flash_map_7435[] = {
+	{ "fsbl", true, MiB(1) },
+	{ "kernel", false, MiB(15) },
 };
 
 static inline void cpu_relax(void)
@@ -189,22 +194,37 @@ static bool dm520_setup_gpio(void)
 	return true;
 }
 
-static bool spi_init(void)
+static bool detect_soc(unsigned int *pchip_id)
 {
 	volatile unsigned long *family_id;
-	unsigned long chip_id;
-	unsigned long hif_mspi;
-	unsigned long hif_spi_intr2;
-	unsigned long hif_spi_intr2_disable;
-	unsigned char spcr;
+	unsigned int chip_id;
 
 	family_id = ioremap(BCM_PHYSICAL_OFFSET + BCM_CHIP_FAMILY_ID, 4);
-	if (family_id == NULL)
+	if (family_id == NULL) {
+		fprintf(stderr, "Failed to map chip family register!\n");
 		return false;
+	}
 
 	chip_id = *family_id;
 	chip_id = (chip_id >> 28 ? chip_id >> 16 : chip_id >> 8);
 	iounmap(family_id, 4);
+
+	if (chip_id == 0x73625 ||
+	    chip_id == 0x7435) {
+		*pchip_id = chip_id;
+		return true;
+	}
+
+	fprintf(stderr, "Unsupported SoC: %#x\n", chip_id);
+	return false;
+}
+
+static bool spi_init(unsigned int chip_id)
+{
+	unsigned long hif_mspi;
+	unsigned long hif_spi_intr2;
+	unsigned long hif_spi_intr2_disable;
+	unsigned char spcr;
 
 	switch (chip_id) {
 	case 0x73625:
@@ -224,7 +244,6 @@ static bool spi_init(void)
 		spcr = 6;
 		break;
 	default:
-		fprintf(stderr, "Unsupported chip: %#lx\n", chip_id);
 		return false;
 	}
 
@@ -615,7 +634,10 @@ int main(int argc, char **argv)
 {
 	const char *partname = "kernel";
 	const struct flash_part *part = NULL;
+	const struct flash_part *flash_map;
+	size_t flash_map_size;
 	unsigned int offset;
+	unsigned int chip_id;
 	unsigned int i;
 	struct stat st;
 	int ret = 1;
@@ -640,8 +662,30 @@ int main(int argc, char **argv)
 	if (argc >= 3)
 		partname = argv[2];
 
+	devmem = open("/dev/mem", O_RDWR | O_SYNC);
+	if (devmem < 0) {
+		perror("/dev/mem");
+		goto err;
+	}
+
+	if (!detect_soc(&chip_id))
+		goto err;
+
+	switch (chip_id) {
+	case 0x73625:
+		flash_map = flash_map_73625;
+		flash_map_size = ARRAY_SIZE(flash_map_73625);
+		break;
+	case 0x7435:
+		flash_map = flash_map_7435;
+		flash_map_size = ARRAY_SIZE(flash_map_7435);
+		break;
+	default:
+		goto err;
+	}
+
 	offset = 0;
-	for (i = 0; i < ARRAY_SIZE(flash_map); i++) {
+	for (i = 0; i < flash_map_size; i++) {
 		if (!strcmp(flash_map[i].name, partname)) {
 			part = &flash_map[i];
 			break;
@@ -668,13 +712,7 @@ int main(int argc, char **argv)
 	signal(SIGINT, SIG_IGN);
 	signal(SIGTERM, SIG_IGN);
 
-	devmem = open("/dev/mem", O_RDWR | O_SYNC);
-	if (devmem < 0) {
-		perror("/dev/mem");
-		goto err;
-	}
-
-	if (!spi_init()) {
+	if (!spi_init(chip_id)) {
 		fprintf(stderr, "init failed\n");
 		goto err;
 	}
