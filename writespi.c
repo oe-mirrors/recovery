@@ -113,6 +113,7 @@ static inline void cpu_relax(void)
 
 static volatile unsigned char *mmio_spi;
 static volatile unsigned long *hif_spi_intr;
+static unsigned long hif_spi_intr2_enable;
 static int devmem = -1;
 
 static volatile void *ioremap(unsigned long phys, size_t length)
@@ -188,8 +189,6 @@ static bool dm520_setup_gpio(void)
 	return true;
 }
 
-static unsigned long hif_spi_intr2_enable;
-
 static bool spi_init(void)
 {
 	volatile unsigned long *family_id;
@@ -254,7 +253,7 @@ static void spi_exit(void)
 {
 	/* reenable kernel irq handler */
 	if (hif_spi_intr) {
-		hif_spi_intr[0x14/4] = 0x20;
+		hif_spi_intr[0x14/4] = hif_spi_intr2_enable;
 		iounmap(hif_spi_intr, HIF_SPI_INTR2_SIZE);
 	}
 
