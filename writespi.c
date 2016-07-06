@@ -74,6 +74,7 @@ enum spi_cmd {
 
 enum manuf_id {
 	MANUF_ID_EON = 0x1c,
+	MANUF_ID_MACRONIX = 0xc2,
 	MANUF_ID_WINBOND = 0xef,
 };
 
@@ -339,6 +340,10 @@ static bool spirom_read_id(void)
 	switch (cmd[1]) {
 	case MANUF_ID_EON:
 		mem_type = 0x70;
+		mem_density = 0x18;
+		break;
+	case MANUF_ID_MACRONIX:
+		mem_type = 0x20;
 		mem_density = 0x18;
 		break;
 	case MANUF_ID_WINBOND:
