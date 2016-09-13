@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (C) 2016 Dream Property GmbH
+# Copyright (C) 2014 Dream Property GmbH
 #
 
 source librecovery
@@ -18,27 +18,23 @@ FILENAME=`xrealpath ${1}`
 
 assert_rescue_mode
 
-is_writable_chardev "${MTD_DEVICE}" || abort "Target device '${MTD_DEVICE}' is not a writable character device"
+is_writable_blockdev "${MMC_DEVICE}" || abort "Target block device '${MMC_DEVICE}' is not a writable block device"
 ! is_empty "${FILENAME}" || abort "No tarball filename given"
 is_readable_file "${FILENAME}" || abort "Cannot access '${FILENAME}'"
 
 create_workspace
 
-if ! is_chardev "${UBI_DEVICE}" && ! attach_ubi_device "${MTD_DEVICE}"; then
-	erase "${MTD_DEVICE}" || abort "Failed to erase ${MTD_DEVICE}"
-	format_ubi_device "${MTD_DEVICE}" || abort "Failed to format ${MTD_DEVICE}"
-	attach_ubi_device "${MTD_DEVICE}" || abort "Failed to attach ${MTD_DEVICE} to UBI"
-fi
-
-if is_chardev "${ROOT_PARTITION}"; then
+if ! is_blockdev "${ROOT_PARTITION}" || ! is_blockdev "${DATA_PARTITION}"; then
 	unmount "${ROOT_MOUNTPOINT}" || abort "Failed to unmount root filesystem"
-	remove_ubi_volume || abort "Failed to remove UBI volume"
+	unmount "${DATA_MOUNTPOINT}" || abort "Failed to unmount data filesystem"
+	create_partition_table "${MMC_DEVICE}" || abort "Failed to partition disk"
+	create_filesystem "${DATA_NAME}" "${DATA_PARTITION}" || warn "Failed to create ${FILESYSTEM} filesystem '${DATA_NAME}' on '${DATA_PARTITION}'"
 fi
 
-create_ubi_volume || abort "Failed to create UBI volume"
-create_filesystem "${ROOT_PARTITION}" || abort "Failed to create ${FILESYSTEM} filesystem on '${ROOT_PARTITION}'"
+unmount "${ROOT_MOUNTPOINT}" || abort "Failed to unmount root filesystem"
+create_filesystem "${ROOT_NAME}" "${ROOT_PARTITION}" || abort "Failed to create ${FILESYSTEM} filesystem '${ROOT_NAME}' on '${ROOT_PARTITION}'"
 safe_mount "${ROOT_PARTITION}" "${ROOT_MOUNTPOINT}" || abort "Failed to mount root filesystem"
 extract_tarball "${FILENAME}" "${ROOT_MOUNTPOINT}" || abort "Failed to extract root filesystem"
-run_postinsts "${ROOT_MOUNTPOINT}" dreambox-secondstage kernel-image || abort "Failed to run postinst scripts"
+run_postinsts "${ROOT_MOUNTPOINT}" kernel-image || abort "Failed to run postinst scripts"
 unmount "${ROOT_MOUNTPOINT}" || warn "Failed to unmount root filesystem"
 info "Finished successfully. You may reboot now."

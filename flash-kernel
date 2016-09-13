@@ -5,9 +5,11 @@
 
 source librecovery
 
+MAX_IMAGE_SIZE=$((31 * 1024 * 1024))
+
 usage()
 {
-	echo "Usage: ${0} [-hqtv] <vmlinux.gz>"
+	echo "Usage: ${0} [-hqtv] <zImage.bin>"
 	exit ${1}
 }
 
@@ -16,11 +18,9 @@ shift $((${OPTIND} - 1))
 [ "$#" -eq 1 ] || usage 1
 VMLINUX=`xrealpath ${1}`
 
-MTD_DEVICE=/dev/mtd2
-
-is_writable_chardev "${MTD_DEVICE}" || abort "Target device '${MTD_DEVICE}' is not a writable character device"
+is_writable_blockdev "${KERNEL_PARTITION}" || abort "Target block device '${KERNEL_PARTITION}' is not a writable block device"
 ! is_empty "${VMLINUX}" || abort "No kernel image given"
 is_readable_file "${VMLINUX}" || abort "Cannot access '${VMLINUX}'"
 
-erase "${MTD_DEVICE}" || abort "Failed to erase ${MTD_DEVICE}"
-write_nand "${MTD_DEVICE}" "${VMLINUX}" || abort "Failed to flash kernel image"
+is_file_size_le "${VMLINUX}" "${MAX_IMAGE_SIZE}" || abort "Kernel image is too big"
+write_blkdev "${VMLINUX}" "${KERNEL_PARTITION}" || abort "Failed to flash kernel image"

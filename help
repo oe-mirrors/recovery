@@ -33,10 +33,6 @@ following commands:
 run-recovery: Fetches a recovery firmware image from the internet or internal
 memory (if available) and installs it, replacing the current operating system.
 
-select-boot-source [A|B|C]: Used to select between two possible kernel images
-(A or B) and the optional second stage bootloader (C). Original firmware uses
-option A, which can be selected by running "select-boot-source A".
-
 flash-tarball: Flashes a firmware file provided by you, either on internal or
 external memory, or via local area network. See "flash-tarball -h".
 EOF

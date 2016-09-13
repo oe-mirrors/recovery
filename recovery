@@ -3,20 +3,17 @@
 # Copyright (C) 2016 Dream Property GmbH
 #
 
-BASE_URI=http://dreamboxupdate.com/download/recovery/dm520/release
-FILENAME=dreambox-image-dm520.tar.xz
-MTD_DEVICE=/dev/mtd0
-UBI_ID=0
-UBI_DEVICE=/dev/ubi${UBI_ID}
-UBI_VOL_ID=0
-ROOT_PARTITION=${UBI_DEVICE}_${UBI_VOL_ID}
+BASE_URI=http://dreamboxupdate.com/download/recovery/dm900/release
+FILENAME=dreambox-image-dm900.tar.xz
+MMC_DEVICE=/dev/mmcblk0
+ROOT_PARTITION=/dev/mmcblk0p2
 ROOT_MOUNTPOINT=/mnt
 ROOT_NAME=dreambox-rootfs
-DATA_NAME=dreambox-data
-DATA_PARTITION=/dev/disk/by-label/${DATA_NAME}
+DATA_PARTITION=/dev/mmcblk0p3
 DATA_MOUNTPOINT=/data
+DATA_NAME=dreambox-data
 RECOVERY_CACHE=${DATA_MOUNTPOINT}/.recovery
-FILESYSTEM=ubifs
+FILESYSTEM=ext4
 
 MOUNTPOINTS=
 WORKSPACE=
@@ -60,6 +57,11 @@ is_readable_file()
 is_writable()
 {
 	[ -w "${1}" ]
+}
+
+is_writable_blockdev()
+{
+	is_blockdev "${1}" && is_writable "${1}"
 }
 
 is_writable_chardev()
@@ -129,6 +131,12 @@ create_directory()
 
 create_filesystem()
 {
+	info "Creating ${FILESYSTEM} filesystem '${1}' on ${2}"
+	xtrap mkfs.${FILESYSTEM} -L "${1}" "${2}" >&3 2>&4
+}
+
+create_nand_filesystem()
+{
 	info "Creating ${FILESYSTEM} filesystem on ${1}"
 	xtrap mkfs.${FILESYSTEM} "${1}"
 }
@@ -161,6 +169,19 @@ create_ubi_volume()
 {
 	info "Creating volume ${UBI_VOL_ID} on ${UBI_DEVICE} (${ROOT_NAME})"
 	xtrap ubimkvol "${UBI_DEVICE}" -n "${UBI_VOL_ID}" -N "${ROOT_NAME}" -m
+}
+
+create_partition_table()
+{
+	info "Creating partition table"
+	xtrap parted --script --align=optimal "${1}" -- \
+		mklabel gpt \
+		mkpart primary ${FILESYSTEM} 1MiB 32MiB \
+		mkpart primary ${FILESYSTEM} 32MiB 1GiB \
+		mkpart primary ${FILESYSTEM} 1GiB 100% \
+		name 1 kernel \
+		name 2 rootfs \
+		name 3 data
 }
 
 create_workspace()
@@ -395,45 +416,42 @@ xgetopts $@
 
 assert_rescue_mode
 
-is_writable_chardev "${MTD_DEVICE}" || abort "Target device '${MTD_DEVICE}' is not a writable character device"
+is_writable_blockdev "${MMC_DEVICE}" || abort "Target block device '${MMC_DEVICE}' is not a writable block device"
 
 create_workspace
 export GNUPGHOME="${WORKSPACE}"
 
 (base64 -d > trustedkeys.gpg || abort 'Failed to write public key') << EOF
-mQENBFcLsf0BCADDo4SxnQwl16cWSYnTwwp+E6ZvdhY3x9yw7b//MUDELtKkEp7wZ+AtHDYd+jzJ
-Syc+n1m4MkArNUzCdseFJJAYEsNEjZ6ZkoMSQ/GZsIKi2IYT0LXN+9c2ZLLZstNZ2201KwqjFkpE
-GXSn7VeLAvm82UgMaECY+4vJ5K3XtsLX6onCfidKy4qI8si4CTLylkDegGQ035FlkzqMKA8flafd
-RGiEWO/2o2ZdYgdjOYQq6W2MaI6zgDzg1V2HMXSweIxnhn8W4iZF80nLTPihoe+p3FRKX0d2G4B0
-wM49BTgfOgdcu3d3xZBRndOUXq0biga814jYLm3o+DqCmfmt3fsVABEBAAG0NERyZWFtYm94IERN
-NTIwIFJlY292ZXJ5IDxkbTUyMEByZWNvdmVyeS5kcmVhbWJveC5kZT6JATgEEwECACIFAlcLsf0C
-GwMGCwkIBwMCBhUIAgkKCwQWAgMBAh4BAheAAAoJENzmv7ygdoPTTw0IAIN+WQMjAQGbSEo6DP41
-U8g3u3gRVxBWpAPeE8wsq3wMjmDK4kcCohnWzJSqb7O4XFDUO0fsg0InojpYCIvfhSK+7eohwIaJ
-ilkdM37nUY7TioFY3pOx63ZzDAJ5SsirU26CIxB+hHWueaS/XsGinodzxl6H9/l8I33U/2DN1oUe
-y9JcHVNxdBRtSNZMYyZXlA+4LrkDDN6/c6kpIG2uZEYOH0WlP+Mqu9G81yYYKiK9MTlsYHcCoSlV
-XR8VVsVBxKkfSsoWLMkhE7aEFqq+FeVjcrRyc7R+QGhdzwq9gK50iXpr+YxfHJNn2FML185NGwyp
-Gnvzh5YpHKnihOS+J7c=
+mQENBFfS0TQBCADLP/mDLWiIF/dJmVFVzQf9CJ7jtb5ilVf4SOasXkPEbdtDsvIIE8ShAHPUgmYC
+YGAl5FJNxaPZMhyylC9BZOLeYdUgJVRJXjY2WX/bE/6/J5z9UWj+XPzbnbxC+ZnzOGwyUAiHtwbF
+YLH0SnCN6LEl+nqgwRwpKBgFp64YyAAJ/Rpj5tK6T9v5QuN5CK/UcClmLSqlC/KSbjf93+W9AyOM
+9F/apxNnhWyEPPjEQbJV8G1WTDL12j4NER3CwwGr+WlKidNdtqDZYYMx89p/qLoV0kbk8tOB7Szx
+STFQIpetPi++WlKduS5K1gmVYSU8v9WdSAIDujbH1lqOtBq6AaIFABEBAAG0NERyZWFtYm94IERN
+OTAwIFJlY292ZXJ5IDxkbTkwMEByZWNvdmVyeS5kcmVhbWJveC5kZT6JATgEEwECACIFAlfS0TQC
+GwMGCwkIBwMCBhUIAgkKCwQWAgMBAh4BAheAAAoJEPAqD3Z9onVhi9YIALa4eA9XRbyNT/kz2fj9
+gJ9aLfoxPACbkc2pxwVmLtqeCvsgzEvG62QkFwfL+HDQy2G3YgOSYM8/Z1Y8Agp0iS/QNzNE9v7u
+cniOy7bX+L+M/zZtLnmY4ixIWcPdMraipjaH3v1c9SUg4eeN6WRgQnPmDA2w+PBViXoAAuqKQrG/
+7DrGLzXiUzRgxoub4hm1au6KSnEgthn7O33dtCKRDwlCFDHNqdOpgayfGKZ+ENrP5FPZIuSmJH+Z
+GWxsi2P4cmVwsSE0i1REX3pk1xd4lefdmminxhgsrHnlh4q5O6fSrSlIfNKZ3SZZ3KeSCB21g/9L
+5jAezlvBvp2M0qC2EDQ=
 EOF
 
 mount_cache
 fetch_signed "${BASE_URI}" "${FILENAME}"
 
-if ! is_chardev "${UBI_DEVICE}" && ! attach_ubi_device "${MTD_DEVICE}"; then
-	erase "${MTD_DEVICE}" || abort "Failed to erase ${MTD_DEVICE}"
-	format_ubi_device "${MTD_DEVICE}" || abort "Failed to format ${MTD_DEVICE}"
-	attach_ubi_device "${MTD_DEVICE}" || abort "Failed to attach ${MTD_DEVICE} to UBI"
-fi
-
-if is_chardev "${ROOT_PARTITION}"; then
+if ! is_blockdev "${ROOT_PARTITION}" || ! is_blockdev "${DATA_PARTITION}"; then
 	unmount "${ROOT_MOUNTPOINT}" || abort "Failed to unmount root filesystem"
-	remove_ubi_volume || abort "Failed to remove UBI volume"
+	unmount "${DATA_MOUNTPOINT}" || abort "Failed to unmount data filesystem"
+	create_partition_table "${MMC_DEVICE}" || abort "Failed to partition disk"
+	create_filesystem "${DATA_NAME}" "${DATA_PARTITION}" || warn "Failed to create ${FILESYSTEM} filesystem '${DATA_NAME}' on '${DATA_PARTITION}'"
+	mount_cache
 fi
 
-create_ubi_volume || abort "Failed to create UBI volume"
-create_filesystem "${ROOT_PARTITION}" || abort "Failed to create ${FILESYSTEM} filesystem on '${ROOT_PARTITION}'"
+unmount "${ROOT_MOUNTPOINT}" || abort "Failed to unmount root filesystem"
+create_filesystem "${ROOT_NAME}" "${ROOT_PARTITION}" || abort "Failed to create ${FILESYSTEM} filesystem '${ROOT_NAME}' on '${ROOT_PARTITION}'"
 safe_mount "${ROOT_PARTITION}" "${ROOT_MOUNTPOINT}" || abort "Failed to mount root filesystem"
 extract_tarball "${FILENAME}" "${ROOT_MOUNTPOINT}" || abort "Failed to extract root filesystem"
-run_postinsts "${ROOT_MOUNTPOINT}" dreambox-secondstage kernel-image || abort "Failed to run postinst scripts"
+run_postinsts "${ROOT_MOUNTPOINT}" kernel-image || abort "Failed to run postinst scripts"
 unmount "${ROOT_MOUNTPOINT}" || warn "Failed to unmount root filesystem"
 
 update_cache "${FILENAME}"

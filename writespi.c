@@ -38,15 +38,23 @@
 
 #define ARRAY_SIZE(x)		(sizeof((x)) / sizeof(*(x)))
 
+#if defined(__arm__)
+#define BCM_PHYSICAL_OFFSET	0xf0000000
+#else
 #define BCM_PHYSICAL_OFFSET	0x10000000
+#endif
+
 #define BCM_CHIP_FAMILY_ID	0x00404000
 
 #define HIF_MSPI_BCM73625	0x00413200
 #define HIF_MSPI_BCM7435	0x0041d400
+#define HIF_MSPI_BCM7439	0x003e3400
 #define HIF_MSPI_SIZE		0x188
 #define HIF_SPI_INTR2_BCM73625	0x00411d00
 #define HIF_SPI_INTR2_BCM7435	0x0041bd00
+#define HIF_SPI_INTR2_BCM7439	0x003e1a00
 #define HIF_SPI_INTR2_SIZE	0x30
+#define HIF_SPI_INTR2_CPU_SET_MSPI_DONE_MASK 0x20
 
 #define GIO_BCM73625		0x00406500
 #define GIO_SIZE		0xa0
@@ -109,6 +117,13 @@ static const struct flash_part flash_map_7435[] = {
 	{ "kernel", false, MiB(15) },
 };
 
+static const struct flash_part flash_map_7439[] = {
+	{ "fsbl", true, MiB(2) },
+	{ "nvram", true, KiB(128) },
+	{ "devtree", true, KiB(128) },
+	{ "kernel", false, KiB(14080) },
+};
+
 static inline void cpu_relax(void)
 {
 #if defined(__mips__)
@@ -118,7 +133,6 @@ static inline void cpu_relax(void)
 
 static volatile unsigned char *mmio_spi;
 static volatile unsigned long *hif_spi_intr;
-static unsigned long hif_spi_intr2_enable;
 static int devmem = -1;
 
 static volatile void *ioremap(unsigned long phys, size_t length)
@@ -210,7 +224,8 @@ static bool detect_soc(unsigned int *pchip_id)
 	iounmap(family_id, 4);
 
 	if (chip_id == 0x73625 ||
-	    chip_id == 0x7435) {
+	    chip_id == 0x7435 ||
+	    chip_id == 0x7439) {
 		*pchip_id = chip_id;
 		return true;
 	}
@@ -223,15 +238,12 @@ static bool spi_init(unsigned int chip_id)
 {
 	unsigned long hif_mspi;
 	unsigned long hif_spi_intr2;
-	unsigned long hif_spi_intr2_disable;
 	unsigned char spcr;
 
 	switch (chip_id) {
 	case 0x73625:
 		hif_mspi = HIF_MSPI_BCM73625;
 		hif_spi_intr2 = HIF_SPI_INTR2_BCM73625;
-		hif_spi_intr2_disable = 0x3f;
-		hif_spi_intr2_enable = 0x3f;
 		spcr = 5;
 		if (!dm520_setup_gpio())
 			return false;
@@ -239,9 +251,12 @@ static bool spi_init(unsigned int chip_id)
 	case 0x7435:
 		hif_mspi = HIF_MSPI_BCM7435;
 		hif_spi_intr2 = HIF_SPI_INTR2_BCM7435;
-		hif_spi_intr2_disable = 0x7f;
-		hif_spi_intr2_enable = 0x20;
 		spcr = 6;
+		break;
+	case 0x7439:
+		hif_mspi = HIF_MSPI_BCM7439;
+		hif_spi_intr2 = HIF_SPI_INTR2_BCM7439;
+		spcr = 8;
 		break;
 	default:
 		return false;
@@ -256,7 +271,7 @@ static bool spi_init(unsigned int chip_id)
 		return false;
 
 	/* disable kernel irq handler */
-	hif_spi_intr[0x10/4] = hif_spi_intr2_disable;
+	hif_spi_intr[0x10/4] = HIF_SPI_INTR2_CPU_SET_MSPI_DONE_MASK;
 
 	mmio_spi[0x180] = 1;
 	mmio_spi[0x20] = 0;
@@ -272,7 +287,7 @@ static void spi_exit(void)
 {
 	/* reenable kernel irq handler */
 	if (hif_spi_intr) {
-		hif_spi_intr[0x14/4] = hif_spi_intr2_enable;
+		hif_spi_intr[0x14/4] = HIF_SPI_INTR2_CPU_SET_MSPI_DONE_MASK;
 		iounmap(hif_spi_intr, HIF_SPI_INTR2_SIZE);
 	}
 
@@ -345,6 +360,8 @@ static bool spirom_read_id(void)
 	unsigned char cmd[] = { SPI_CMD_RDID, 0, 0, 0 };
 	unsigned char mem_type;
 	unsigned char mem_density;
+	bool valid_type;
+	bool valid_density;
 
 	if (!spirom_wait_ready(1000))
 		return false;
@@ -355,30 +372,33 @@ static bool spirom_read_id(void)
 	printf("Memory type    : %02x\n", cmd[2]);
 	printf("Memory density : %02x\n", cmd[3]);
 
+	mem_type = cmd[2];
+	mem_density = cmd[3];
+
 	switch (cmd[1]) {
 	case MANUF_ID_EON:
-		mem_type = 0x70;
-		mem_density = 0x18;
+		valid_type = (mem_type == 0x70);
+		valid_density = (mem_density == 0x18);
 		break;
 	case MANUF_ID_MACRONIX:
-		mem_type = 0x20;
-		mem_density = 0x18;
+		valid_type = (mem_type == 0x20);
+		valid_density = (mem_density == 0x18 || mem_density == 0x19);
 		break;
 	case MANUF_ID_WINBOND:
-		mem_type = 0x40;
-		mem_density = 0x18;
+		valid_type = (mem_type == 0x40);
+		valid_density = (mem_density == 0x18);
 		break;
 	default:
 		fprintf(stderr, "wrong manufacturer id\n");
 		return false;
 	}
 
-	if (cmd[2] != mem_type) {
+	if (!valid_type) {
 		fprintf(stderr, "wrong memory type\n");
 		return false;
 	}
 
-	if (cmd[3] != mem_density) {
+	if (!valid_density) {
 		fprintf(stderr, "wrong memory density\n");
 		return false;
 	}
@@ -679,6 +699,10 @@ int main(int argc, char **argv)
 	case 0x7435:
 		flash_map = flash_map_7435;
 		flash_map_size = ARRAY_SIZE(flash_map_7435);
+		break;
+	case 0x7439:
+		flash_map = flash_map_7439;
+		flash_map_size = ARRAY_SIZE(flash_map_7439);
 		break;
 	default:
 		goto err;

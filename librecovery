@@ -2,18 +2,17 @@
 # Copyright (C) 2016 Dream Property GmbH
 #
 
-MTD_DEVICE=/dev/mtd0
-UBI_ID=0
-UBI_DEVICE=/dev/ubi${UBI_ID}
-UBI_VOL_ID=0
-ROOT_PARTITION=${UBI_DEVICE}_${UBI_VOL_ID}
+MMC_DEVICE=/dev/mmcblk0
+KERNEL_PARTITION=/dev/mmcblk0p1
+ROOT_PARTITION=/dev/mmcblk0p2
 ROOT_MOUNTPOINT=/mnt
 ROOT_NAME=dreambox-rootfs
-DATA_NAME=dreambox-data
-DATA_PARTITION=/dev/disk/by-label/${DATA_NAME}
+DATA_PARTITION=/dev/mmcblk0p3
 DATA_MOUNTPOINT=/data
+DATA_NAME=dreambox-data
+RESCUE_PARTITION=/dev/mtdblock2
 RECOVERY_CACHE=${DATA_MOUNTPOINT}/.recovery
-FILESYSTEM=ubifs
+FILESYSTEM=ext4
 
 MOUNTPOINTS=
 WORKSPACE=
@@ -166,6 +165,12 @@ create_directory()
 
 create_filesystem()
 {
+	info "Creating ${FILESYSTEM} filesystem '${1}' on ${2}"
+	xtrap mkfs.${FILESYSTEM} -L "${1}" "${2}"
+}
+
+create_nand_filesystem()
+{
 	info "Creating ${FILESYSTEM} filesystem on ${1}"
 	xtrap mkfs.${FILESYSTEM} "${1}"
 }
@@ -204,6 +209,19 @@ create_ubi_volume()
 {
 	info "Creating volume ${UBI_VOL_ID} on ${UBI_DEVICE} (${ROOT_NAME})"
 	xtrap ubimkvol "${UBI_DEVICE}" -n "${UBI_VOL_ID}" -N "${ROOT_NAME}" -m
+}
+
+create_partition_table()
+{
+	info "Creating partition table"
+	xtrap parted --script --align=optimal "${1}" -- \
+		mklabel gpt \
+		mkpart primary ${FILESYSTEM} 1MiB 32MiB \
+		mkpart primary ${FILESYSTEM} 32MiB 1GiB \
+		mkpart primary ${FILESYSTEM} 1GiB 100% \
+		name 1 kernel \
+		name 2 rootfs \
+		name 3 data
 }
 
 create_tarball()
