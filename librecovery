@@ -169,6 +169,11 @@ create_filesystem()
 	xtrap mkfs.${FILESYSTEM} -L "${1}" "${2}"
 }
 
+blkdev_has_filesystem()
+{
+	blkid -o export "${1}" | grep -q "^TYPE=${FILESYSTEM}$"
+}
+
 create_nand_filesystem()
 {
 	info "Creating ${FILESYSTEM} filesystem on ${1}"

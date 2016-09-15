@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (C) 2014 Dream Property GmbH
+# Copyright (C) 2016 Dream Property GmbH
 #
 
 source librecovery
@@ -24,7 +24,8 @@ is_readable_file "${FILENAME}" || abort "Cannot access '${FILENAME}'"
 
 create_workspace
 
-if ! is_blockdev "${ROOT_PARTITION}" || ! is_blockdev "${DATA_PARTITION}"; then
+if ! is_blockdev "${ROOT_PARTITION}" || ! is_blockdev "${DATA_PARTITION}" || \
+   ! blkdev_has_filesystem "${ROOT_PARTITION}" || ! blkdev_has_filesystem "${DATA_PARTITION}"; then
 	unmount "${ROOT_MOUNTPOINT}" || abort "Failed to unmount root filesystem"
 	unmount "${DATA_MOUNTPOINT}" || abort "Failed to unmount data filesystem"
 	create_partition_table "${MMC_DEVICE}" || abort "Failed to partition disk"

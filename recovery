@@ -135,6 +135,11 @@ create_filesystem()
 	xtrap mkfs.${FILESYSTEM} -L "${1}" "${2}" >&3 2>&4
 }
 
+blkdev_has_filesystem()
+{
+	blkid -o export "${1}" | grep -q "^TYPE=${FILESYSTEM}$"
+}
+
 create_nand_filesystem()
 {
 	info "Creating ${FILESYSTEM} filesystem on ${1}"
@@ -435,7 +440,8 @@ EOF
 mount_cache
 fetch_signed "${BASE_URI}" "${FILENAME}"
 
-if ! is_blockdev "${ROOT_PARTITION}" || ! is_blockdev "${DATA_PARTITION}"; then
+if ! is_blockdev "${ROOT_PARTITION}" || ! is_blockdev "${DATA_PARTITION}" \
+   ! blkdev_has_filesystem "${ROOT_PARTITION}" || ! blkdev_has_filesystem "${DATA_PARTITION}"; then
 	unmount "${ROOT_MOUNTPOINT}" || abort "Failed to unmount root filesystem"
 	unmount "${DATA_MOUNTPOINT}" || abort "Failed to unmount data filesystem"
 	create_partition_table "${MMC_DEVICE}" || abort "Failed to partition disk"
