@@ -174,14 +174,10 @@ create_ubi_volume()
 create_partition_table()
 {
 	info "Creating partition table"
-	xtrap parted --script --align=optimal "${1}" -- \
-		mklabel gpt \
-		mkpart primary ${FILESYSTEM} 1MiB 32MiB \
-		mkpart primary ${FILESYSTEM} 32MiB 1GiB \
-		mkpart primary ${FILESYSTEM} 1GiB 100% \
-		name 1 kernel \
-		name 2 rootfs \
-		name 3 data
+	xtrap sgdisk -z \
+		-n 1:2048:65535 -c 1:kernel -t 1:8301 \
+		-n 2:65536:2097151 -c 2:rootfs -t 2:8307 \
+		-n 3:2097152: -c 3:data -t 3:8300 "${1}"
 }
 
 create_workspace()
