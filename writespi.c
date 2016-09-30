@@ -126,7 +126,15 @@ static const struct flash_part flash_map_7439[] = {
 
 static inline void cpu_relax(void)
 {
-#if defined(__mips__)
+#if defined(__aarch64__)
+	__asm__ volatile("yield" ::: "memory");
+#elif defined(__i386__) || defined(__x86_64__)
+	__asm__ volatile("rep; nop" ::: "memory");
+#elif defined(__ia64__)
+	__asm__ volatile("hint @pause" ::: "memory");
+#elif defined(__tile__)
+	__asm__ volatile("mfspr zero, PASS" ::: "memory");
+#else
 	__asm__ volatile("" ::: "memory");
 #endif
 }
