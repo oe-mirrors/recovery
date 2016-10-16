@@ -103,11 +103,6 @@ is_file_size_le()
 	[ "`stat -c '%s' ${1}`" -le "${2}" ]
 }
 
-is_file_size_le_blockdev()
-{
-	is_file_size_le "${1}" "$((`sfdisk -s ${2}` * 1024))"
-}
-
 is_initrd()
 {
 	is_file "/etc/initrd-release"
