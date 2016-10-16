@@ -10,7 +10,6 @@ ROOT_NAME=dreambox-rootfs
 DATA_PARTITION=/dev/mmcblk0p3
 DATA_MOUNTPOINT=/data
 DATA_NAME=dreambox-data
-RESCUE_PARTITION=/dev/mtdblock2
 RECOVERY_CACHE=${DATA_MOUNTPOINT}/.recovery
 FILESYSTEM=ext4
 
