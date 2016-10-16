@@ -314,7 +314,9 @@ run_postinsts()
 		safe_mount /${fs} ${mountpoint}/${fs} -o bind || abort "Failed to mount ${mountpoint}/${fs}"
 	done
 	for package in $@; do
-		xchroot ${mountpoint} /var/lib/${pkgtype}/info/${package}.postinst || abort "Failed to run ${package}.postinst"
+		if [ -x "${mountpoint}/var/lib/${pkgtype}/info/${package}.postinst" ]; then
+			xchroot ${mountpoint} /var/lib/${pkgtype}/info/${package}.postinst || abort "Failed to run ${package}.postinst"
+		fi
 	done
 	for fs in ${virtfs}; do
 		unmount ${mountpoint}/${fs} || warn "Failed to unmount ${mountpoint}/${fs}"
