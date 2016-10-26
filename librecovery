@@ -221,9 +221,11 @@ create_partition_table()
 
 create_tarball()
 {
+	local sysroot="${1}"
+	local tarball="${2}"
 	local opt
 
-	case "${2}" in
+	case "${tarball}" in
 		*.tar)
 			opt=""
 			;;
@@ -249,15 +251,32 @@ create_tarball()
 			opt="-J"
 			;;
 		*)
-			abort "Invalid file type: ${2}"
+			abort "Invalid file type: ${tarball}"
 			;;
 	esac
 
-	create_directory "`dirname ${2}`"
-	info "Creating ${2} from ${1}"
-	(cd "${1}" && find . -type s) >sockets
-	xtar -C "${1}" ${opt} --exclude-from=sockets -cf "${2}.tmp" .
-	mv "${2}.tmp" "${2}"
+	create_directory "`dirname ${tarball}`"
+
+	echo "${WORKSPACE:1}" >exclude.list
+	(cd "${sysroot}" && find . -type s) >>exclude.list
+
+	if [ $# -gt 2 ]; then
+		printf "" >include.list
+		IFS=$'\n'
+		set -- ${3}
+		unset IFS
+		for path; do
+			if [ -e "${sysroot}${path}" ]; then
+				echo "${path:1}" >>include.list
+			fi
+		done
+	else
+		echo "." >include.list
+	fi
+
+	info "Creating ${tarball} from ${sysroot}"
+	xtar -C "${sysroot}" ${opt} --exclude-from=exclude.list --files-from=include.list -cf "${tarball}.tmp"
+	mv "${tarball}.tmp" "${tarball}"
 }
 
 create_workspace()
