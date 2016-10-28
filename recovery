@@ -137,7 +137,7 @@ create_filesystem()
 
 blkdev_has_filesystem()
 {
-	blkid -o export "${1}" | grep -q "^TYPE=${FILESYSTEM}$"
+	is_blockdev "${1}" && blkid -o export "${1}" | grep -q "^TYPE=${FILESYSTEM}$"
 }
 
 create_nand_filesystem()
@@ -330,7 +330,7 @@ assert_rescue_mode()
 
 usage()
 {
-	echo "Usage: ${0} [-hqtv]"
+	echo "Usage: ${0} [-bhqrtv]"
 	exit ${1}
 }
 
@@ -375,15 +375,6 @@ xdd()
 	xtrap dd conv=fsync $@
 }
 
-xgetopts()
-{
-	local opt
-
-	while getopts hqtv opt; do
-		std_opt "${opt}"
-	done
-}
-
 xrealpath()
 {
 	local opt
@@ -415,7 +406,20 @@ xtrap()
 	(trap '' HUP INT TERM; exec $@) >&3 2>&4
 }
 
-xgetopts $@
+BACKUP_SETTINGS=":"
+RESTORE_SETTINGS=":"
+
+while getopts bhqrtv opt; do
+	case "${opt}" in
+		b)
+			BACKUP_SETTINGS="backup-settings"
+			;;
+		r)
+			RESTORE_SETTINGS="restore-settings"
+			;;
+	esac
+	std_opt "${opt}"
+done
 
 assert_rescue_mode
 
@@ -442,8 +446,9 @@ EOF
 mount_cache
 fetch_signed "${BASE_URI}" "${FILENAME}"
 
-if ! is_blockdev "${ROOT_PARTITION}" || ! is_blockdev "${DATA_PARTITION}" \
-   ! blkdev_has_filesystem "${ROOT_PARTITION}" || ! blkdev_has_filesystem "${DATA_PARTITION}"; then
+if blkdev_has_filesystem "${ROOT_PARTITION}" && blkdev_has_filesystem "${DATA_PARTITION}"; then
+	${BACKUP_SETTINGS}
+else
 	unmount "${ROOT_MOUNTPOINT}" || abort "Failed to unmount root filesystem"
 	unmount "${DATA_MOUNTPOINT}" || abort "Failed to unmount data filesystem"
 	create_partition_table "${MMC_DEVICE}" || abort "Failed to partition disk"
@@ -456,6 +461,7 @@ create_filesystem "${ROOT_NAME}" "${ROOT_PARTITION}" || abort "Failed to create 
 safe_mount "${ROOT_PARTITION}" "${ROOT_MOUNTPOINT}" || abort "Failed to mount root filesystem"
 extract_tarball "${FILENAME}" "${ROOT_MOUNTPOINT}" || abort "Failed to extract root filesystem"
 run_postinsts "${ROOT_MOUNTPOINT}" kernel-image || abort "Failed to run postinst scripts"
+${RESTORE_SETTINGS}
 unmount "${ROOT_MOUNTPOINT}" || warn "Failed to unmount root filesystem"
 
 update_cache "${FILENAME}"
