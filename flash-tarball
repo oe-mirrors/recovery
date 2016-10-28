@@ -7,11 +7,25 @@ source librecovery
 
 usage()
 {
-	echo "Usage: ${0} [-hqtv] <dreambox-image.tar.xz>"
+	echo "Usage: ${0} [-bhqrtv] <dreambox-image.tar.xz>"
 	exit ${1}
 }
 
-xgetopts $@
+BACKUP_SETTINGS=":"
+RESTORE_SETTINGS=":"
+
+while getopts bhqrtv opt; do
+	case "${opt}" in
+		b)
+			BACKUP_SETTINGS="backup-settings"
+			;;
+		r)
+			RESTORE_SETTINGS="restore-settings"
+			;;
+	esac
+	std_opt "${opt}"
+done
+
 shift $((${OPTIND} - 1))
 [ "$#" -eq 1 ] || usage 1
 FILENAME=`xrealpath ${1}`
@@ -24,8 +38,10 @@ is_readable_file "${FILENAME}" || abort "Cannot access '${FILENAME}'"
 
 create_workspace
 
-if ! is_blockdev "${ROOT_PARTITION}" || ! is_blockdev "${DATA_PARTITION}" || \
-   ! blkdev_has_filesystem "${ROOT_PARTITION}" || ! blkdev_has_filesystem "${DATA_PARTITION}"; then
+if blkdev_has_filesystem "${ROOT_PARTITION}" && blkdev_has_filesystem "${DATA_PARTITION}"; then
+	${BACKUP_SETTINGS}
+else
+	! is_beneath_directory "${FILENAME}" "${DATA_MOUNTPOINT}" || abort "Refusing to create paritions: '${FILENAME}' is beneath '${DATA_PARTITION}'"
 	unmount "${ROOT_MOUNTPOINT}" || abort "Failed to unmount root filesystem"
 	unmount "${DATA_MOUNTPOINT}" || abort "Failed to unmount data filesystem"
 	create_partition_table "${MMC_DEVICE}" || abort "Failed to partition disk"
@@ -37,5 +53,6 @@ create_filesystem "${ROOT_NAME}" "${ROOT_PARTITION}" || abort "Failed to create 
 safe_mount "${ROOT_PARTITION}" "${ROOT_MOUNTPOINT}" || abort "Failed to mount root filesystem"
 extract_tarball "${FILENAME}" "${ROOT_MOUNTPOINT}" || abort "Failed to extract root filesystem"
 run_postinsts "${ROOT_MOUNTPOINT}" kernel-image || abort "Failed to run postinst scripts"
+${RESTORE_SETTINGS}
 unmount "${ROOT_MOUNTPOINT}" || warn "Failed to unmount root filesystem"
 info "Finished successfully. You may reboot now."

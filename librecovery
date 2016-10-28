@@ -165,7 +165,7 @@ create_filesystem()
 
 blkdev_has_filesystem()
 {
-	blkid -o export "${1}" | grep -q "^TYPE=${FILESYSTEM}$"
+	is_blockdev "${1}" && blkid -o export "${1}" | grep -q "^TYPE=${FILESYSTEM}$"
 }
 
 create_nand_filesystem()
