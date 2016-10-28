@@ -160,7 +160,7 @@ create_directory()
 create_filesystem()
 {
 	info "Creating ${FILESYSTEM} filesystem '${1}' on ${2}"
-	xtrap mkfs.${FILESYSTEM} -L "${1}" "${2}"
+	xtrap mkfs.${FILESYSTEM} -F -L "${1}" "${2}"
 }
 
 blkdev_has_filesystem()
