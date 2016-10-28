@@ -28,23 +28,23 @@ if is_beneath_directory "${FILENAME}" "${DATA_MOUNTPOINT}"; then
 fi
 safe_mount "${ROOT_PARTITION}" "${ROOT_MOUNTPOINT}" || abort "Failed to mount root filesystem"
 
-mkdir tarball
-extract_tarball "${FILENAME}" tarball || abort "Failed to extract settings"
+mkdir settings
+extract_tarball "${FILENAME}" settings || abort "Failed to extract settings"
 
-if [ -d "tarball/tmp/.recovery/" ]; then
-	if [ -f "tarball/tmp/.recovery/backup-paths.bak" ]; then
+if [ -d "settings/tmp/.recovery/" ]; then
+	if [ -f "settings/tmp/.recovery/backup-paths.bak" ]; then
 		IFS=$'\n'
-		set -- $(cat tarball/tmp/.recovery/backup-paths.bak)
+		set -- $(cat settings/tmp/.recovery/backup-paths.bak)
 		unset IFS
 		for path; do
 			rm -rf "${ROOT_MOUNTPOINT}${path}"
 		done
 	fi
-	if [ -f "tarball/tmp/.recovery/pwhash-root.bak" ]; then
+	if [ -f "settings/tmp/.recovery/pwhash-root.bak" ]; then
 		info "Restoring root password"
-		PWHASH=$(cat "tarball/tmp/.recovery/pwhash-root.bak")
+		PWHASH=$(cat "settings/tmp/.recovery/pwhash-root.bak")
 		sed -e "s,^\(root:\)[^:]*\(:.*\),\1${PWHASH}\2," -i "${ROOT_MOUNTPOINT}/etc/shadow"
 	fi
-	rm -rf tarball/tmp
+	rm -rf settings/tmp
 fi
-cp -a tarball/* ${ROOT_MOUNTPOINT}/
+cp -a settings/* ${ROOT_MOUNTPOINT}/
