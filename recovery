@@ -278,6 +278,17 @@ remount_cache_rw()
 		mount -o remount,rw "${DATA_MOUNTPOINT}" && is_writable "${DATA_MOUNTPOINT}"
 }
 
+update_cache()
+{
+	if [ -f "${1}" ] && remount_cache_rw; then
+		create_directory "${RECOVERY_CACHE}"
+		if is_directory "${RECOVERY_CACHE}"; then
+			info "Updating recovery cache (${1})"
+			xcp "${1}" "${RECOVERY_CACHE}/${1}" || true
+		fi
+	fi
+}
+
 update_cache_signed()
 {
 	if cache_changed "${1}" && remount_cache_rw; then
@@ -408,14 +419,15 @@ xtrap()
 
 BACKUP_SETTINGS=":"
 RESTORE_SETTINGS=":"
+SETTINGS="settings.tar.gz"
 
 while getopts bhqrtv opt; do
 	case "${opt}" in
 		b)
-			BACKUP_SETTINGS="backup-settings"
+			BACKUP_SETTINGS="backup-settings ${SETTINGS}"
 			;;
 		r)
-			RESTORE_SETTINGS="restore-settings"
+			RESTORE_SETTINGS="restore-settings ${SETTINGS}"
 			;;
 	esac
 	std_opt "${opt}"
@@ -446,13 +458,19 @@ EOF
 mount_cache
 fetch_signed "${BASE_URI}" "${FILENAME}"
 
-if blkdev_has_filesystem "${ROOT_PARTITION}" && blkdev_has_filesystem "${DATA_PARTITION}"; then
+if blkdev_has_filesystem "${ROOT_PARTITION}"; then
 	${BACKUP_SETTINGS}
-else
+fi
+
+if ! is_blockdev "${ROOT_PARTITION}" || ! blkdev_has_filesystem "${DATA_PARTITION}"; then
 	unmount "${ROOT_MOUNTPOINT}" || abort "Failed to unmount root filesystem"
 	unmount "${DATA_MOUNTPOINT}" || abort "Failed to unmount data filesystem"
-	create_partition_table "${MMC_DEVICE}" || abort "Failed to partition disk"
-	create_filesystem "${DATA_NAME}" "${DATA_PARTITION}" || warn "Failed to create ${FILESYSTEM} filesystem '${DATA_NAME}' on '${DATA_PARTITION}'"
+	if ! is_blockdev "${ROOT_PARTITION}" || ! is_blockdev "${DATA_PARTITION}"; then
+		create_partition_table "${MMC_DEVICE}" || abort "Failed to partition disk"
+	fi
+	if ! blkdev_has_filesystem "${DATA_PARTITION}"; then
+		create_filesystem "${DATA_NAME}" "${DATA_PARTITION}" || warn "Failed to create ${FILESYSTEM} filesystem '${DATA_NAME}' on '${DATA_PARTITION}'"
+	fi
 	mount_cache
 fi
 
@@ -464,6 +482,7 @@ run_postinsts "${ROOT_MOUNTPOINT}" kernel-image || abort "Failed to run postinst
 ${RESTORE_SETTINGS}
 unmount "${ROOT_MOUNTPOINT}" || warn "Failed to unmount root filesystem"
 
+update_cache "${SETTINGS}"
 update_cache_signed "${FILENAME}"
 unmount_cache
 
