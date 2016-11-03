@@ -41,7 +41,10 @@ create_workspace
 if blkdev_has_filesystem "${ROOT_PARTITION}" && blkdev_has_filesystem "${DATA_PARTITION}"; then
 	${BACKUP_SETTINGS}
 else
-	! is_beneath_directory "${FILENAME}" "${DATA_MOUNTPOINT}" || abort "Refusing to create paritions: '${FILENAME}' is beneath '${DATA_PARTITION}'"
+	if is_beneath_directory "${FILENAME}" "${DATA_MOUNTPOINT}"; then
+		xcp "${FILENAME}" .
+		FILENAME=`basename "${FILENAME}"`
+	fi
 	unmount "${ROOT_MOUNTPOINT}" || abort "Failed to unmount root filesystem"
 	unmount "${DATA_MOUNTPOINT}" || abort "Failed to unmount data filesystem"
 	create_partition_table "${MMC_DEVICE}" || abort "Failed to partition disk"
