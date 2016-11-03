@@ -372,6 +372,17 @@ remount_cache_rw()
 		mount -o remount,rw "${DATA_MOUNTPOINT}" && is_writable "${DATA_MOUNTPOINT}"
 }
 
+update_cache()
+{
+	if [ -f "${1}" ] && remount_cache_rw; then
+		create_directory "${RECOVERY_CACHE}"
+		if is_directory "${RECOVERY_CACHE}"; then
+			info "Updating recovery cache (${1})"
+			xcp "${1}" "${RECOVERY_CACHE}/${1}" || true
+		fi
+	fi
+}
+
 update_cache_signed()
 {
 	if cache_changed "${1}" && remount_cache_rw; then

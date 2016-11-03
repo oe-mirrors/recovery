@@ -13,14 +13,15 @@ usage()
 
 BACKUP_SETTINGS=":"
 RESTORE_SETTINGS=":"
+SETTINGS="settings.tar.gz"
 
 while getopts bhqrtv opt; do
 	case "${opt}" in
 		b)
-			BACKUP_SETTINGS="backup-settings"
+			BACKUP_SETTINGS="backup-settings ${SETTINGS}"
 			;;
 		r)
-			RESTORE_SETTINGS="restore-settings"
+			RESTORE_SETTINGS="restore-settings ${SETTINGS}"
 			;;
 	esac
 	std_opt "${opt}"
@@ -38,17 +39,26 @@ is_readable_file "${FILENAME}" || abort "Cannot access '${FILENAME}'"
 
 create_workspace
 
-if blkdev_has_filesystem "${ROOT_PARTITION}" && blkdev_has_filesystem "${DATA_PARTITION}"; then
+mount_cache
+
+if blkdev_has_filesystem "${ROOT_PARTITION}"; then
 	${BACKUP_SETTINGS}
-else
+fi
+
+if ! is_blockdev "${ROOT_PARTITION}" || ! blkdev_has_filesystem "${DATA_PARTITION}"; then
 	if is_beneath_directory "${FILENAME}" "${DATA_MOUNTPOINT}"; then
 		xcp "${FILENAME}" .
 		FILENAME=`basename "${FILENAME}"`
 	fi
 	unmount "${ROOT_MOUNTPOINT}" || abort "Failed to unmount root filesystem"
 	unmount "${DATA_MOUNTPOINT}" || abort "Failed to unmount data filesystem"
-	create_partition_table "${MMC_DEVICE}" || abort "Failed to partition disk"
-	create_filesystem "${DATA_NAME}" "${DATA_PARTITION}" || warn "Failed to create ${FILESYSTEM} filesystem '${DATA_NAME}' on '${DATA_PARTITION}'"
+	if ! is_blockdev "${ROOT_PARTITION}" || ! is_blockdev "${DATA_PARTITION}"; then
+		create_partition_table "${MMC_DEVICE}" || abort "Failed to partition disk"
+	fi
+	if ! blkdev_has_filesystem "${DATA_PARTITION}"; then
+		create_filesystem "${DATA_NAME}" "${DATA_PARTITION}" || warn "Failed to create ${FILESYSTEM} filesystem '${DATA_NAME}' on '${DATA_PARTITION}'"
+	fi
+	mount_cache
 fi
 
 unmount "${ROOT_MOUNTPOINT}" || abort "Failed to unmount root filesystem"
@@ -58,4 +68,8 @@ extract_tarball "${FILENAME}" "${ROOT_MOUNTPOINT}" || abort "Failed to extract r
 run_postinsts "${ROOT_MOUNTPOINT}" kernel-image || abort "Failed to run postinst scripts"
 ${RESTORE_SETTINGS}
 unmount "${ROOT_MOUNTPOINT}" || warn "Failed to unmount root filesystem"
+
+update_cache "${SETTINGS}"
+unmount_cache
+
 info "Finished successfully. You may reboot now."
