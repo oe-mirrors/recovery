@@ -31,7 +31,7 @@ EOF
 
 mount_cache
 fetch_signed "${BASE_URI}" "${FILENAME}"
-update_cache "${FILENAME}"
+update_cache_signed "${FILENAME}"
 unmount_cache
 
 run "./${FILENAME}" $@

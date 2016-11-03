@@ -278,12 +278,12 @@ remount_cache_rw()
 		mount -o remount,rw "${DATA_MOUNTPOINT}" && is_writable "${DATA_MOUNTPOINT}"
 }
 
-update_cache()
+update_cache_signed()
 {
 	if cache_changed "${1}" && remount_cache_rw; then
 		create_directory "${RECOVERY_CACHE}"
 		if is_directory "${RECOVERY_CACHE}"; then
-			info "Updating recovery cache"
+			info "Updating recovery cache (${1})"
 			xcp "${1}" "${RECOVERY_CACHE}/${1}" || true
 			xcp "${1}.sig" "${RECOVERY_CACHE}/${1}.sig" || true
 		fi
@@ -464,7 +464,7 @@ run_postinsts "${ROOT_MOUNTPOINT}" kernel-image || abort "Failed to run postinst
 ${RESTORE_SETTINGS}
 unmount "${ROOT_MOUNTPOINT}" || warn "Failed to unmount root filesystem"
 
-update_cache "${FILENAME}"
+update_cache_signed "${FILENAME}"
 unmount_cache
 
 info "Initiating reboot"
