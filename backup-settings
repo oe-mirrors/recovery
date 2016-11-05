@@ -45,6 +45,8 @@ BACKUP_PATHS="
 /etc/dropbear/
 /etc/enigma2/
 /etc/exports
+/etc/hostname
+/etc/machine-id
 /etc/recovery/
 /etc/videomode
 /root/.ssh/
