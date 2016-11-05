@@ -41,9 +41,11 @@ create_workspace
 
 mount_cache
 
+[ ! -f "${RECOVERY_CACHE}/settings.tar.gz" ] || cp ${RECOVERY_CACHE}/settings.tar.gz ${SETTINGS}
 if blkdev_has_filesystem "${ROOT_PARTITION}"; then
 	${BACKUP_SETTINGS}
 fi
+[ "${RESTORE_SETTINGS}" = ":" -o -f "${SETTINGS}" ] || abort "Can't restore settings without prior backup!"
 
 if ! is_blockdev "${ROOT_PARTITION}" || ! blkdev_has_filesystem "${DATA_PARTITION}"; then
 	if is_beneath_directory "${FILENAME}" "${DATA_MOUNTPOINT}"; then
@@ -69,7 +71,7 @@ run_postinsts "${ROOT_MOUNTPOINT}" kernel-image || abort "Failed to run postinst
 ${RESTORE_SETTINGS}
 unmount "${ROOT_MOUNTPOINT}" || warn "Failed to unmount root filesystem"
 
-update_cache "${SETTINGS}"
+[ "${BACKUP_SETTINGS}" = ":" ] || update_cache "${SETTINGS}"
 unmount_cache
 
 info "Finished successfully. You may reboot now."
