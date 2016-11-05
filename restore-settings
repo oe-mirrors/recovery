@@ -31,20 +31,26 @@ safe_mount "${ROOT_PARTITION}" "${ROOT_MOUNTPOINT}" || abort "Failed to mount ro
 mkdir settings
 extract_tarball "${FILENAME}" settings || abort "Failed to extract settings"
 
-if [ -d "settings/tmp/.recovery/" ]; then
-	if [ -f "settings/tmp/.recovery/backup-paths.bak" ]; then
-		IFS=$'\n'
-		set -- $(cat settings/tmp/.recovery/backup-paths.bak)
-		unset IFS
-		for path; do
-			rm -rf "${ROOT_MOUNTPOINT}${path}"
-		done
-	fi
-	if [ -f "settings/tmp/.recovery/pwhash-root.bak" ]; then
-		info "Restoring root password"
-		PWHASH=$(cat "settings/tmp/.recovery/pwhash-root.bak")
-		sed -e "s,^\(root:\)[^:]*\(:.*\),\1${PWHASH}\2," -i "${ROOT_MOUNTPOINT}/etc/shadow"
-	fi
-	rm -rf settings/tmp
+if [ -f "settings/tmp/.recovery/backup-paths.bak" ]; then
+	info "Deleting files and directories contained in backup"
+	IFS=$'\n'
+	set -- $(cat settings/tmp/.recovery/backup-paths.bak)
+	unset IFS
+	for path; do
+		rm -rfv "${ROOT_MOUNTPOINT}${path}"
+	done
 fi
-cp -a settings/* ${ROOT_MOUNTPOINT}/
+
+info "Restoring configuration files"
+cp -av settings/* ${ROOT_MOUNTPOINT}/
+
+if [ -f "settings/tmp/.recovery/pwhash-root.bak" -a -f "${ROOT_MOUNTPOINT}/etc/shadow" ]; then
+	info "Restoring root password"
+	PWHASH=$(cat "settings/tmp/.recovery/pwhash-root.bak")
+	sed -e "s,^\(root:\)[^:]*\(:.*\),\1${PWHASH}\2," -i "${ROOT_MOUNTPOINT}/etc/shadow"
+fi
+if [ -f "settings/tmp/.recovery/packages.bak" -a -d "${ROOT_MOUNTPOINT}/etc/enigma2" ]; then
+	info "Saving list of installed packages"
+	cp -av "settings/tmp/.recovery/packages.bak" "${ROOT_MOUNTPOINT}/etc/enigma2/packages.bak"
+fi
+rm -rf settings/tmp
