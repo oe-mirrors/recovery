@@ -290,8 +290,12 @@ create_workspace()
 
 extract_tarball()
 {
-	info "Extracting '${1}' to '${2}'"
-	xtar -xf "${1}" -C "${2}"
+	local tarball="${1}"
+	local dir="${2}"
+	shift 2
+
+	info "Extracting '${tarball}' to '${dir}'"
+	xtar -xf "${tarball}" -C "${dir}" $@
 }
 
 fetch()
