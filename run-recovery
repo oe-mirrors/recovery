@@ -8,7 +8,9 @@ source librecovery
 BASE_URI=http://dreamboxupdate.com/download/recovery/dm900/release
 FILENAME=recovery
 
-xgetopts $@
+while getopts bhqrtv opt; do
+	std_opt "${opt}"
+done
 assert_rescue_mode
 create_workspace
 
