@@ -24,7 +24,9 @@
  */
 
 #define _POSIX_C_SOURCE 199309L
+#include <errno.h>
 #include <fcntl.h>
+#include <getopt.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -95,6 +97,8 @@ struct flash_part {
 	bool rdonly;
 	unsigned int size;
 };
+
+static bool g_verbose;
 
 static const struct flash_part flash_map_73625[] = {
 	{ "fsbl", true, MiB(1) },
@@ -239,10 +243,13 @@ static void spi_exit(void)
 	if (hif_spi_intr) {
 		hif_spi_intr[0x14/4] = HIF_SPI_INTR2_CPU_SET_MSPI_DONE_MASK;
 		iounmap(hif_spi_intr, HIF_SPI_INTR2_SIZE);
+		hif_spi_intr = NULL;
 	}
 
-	if (mmio_spi)
+	if (mmio_spi) {
 		iounmap(mmio_spi, HIF_MSPI_SIZE);
+		mmio_spi = NULL;
+	}
 }
 
 static int spirom_read_status(void)
@@ -272,14 +279,17 @@ static bool spirom_wait_ready(unsigned int to)
 	return true;
 }
 
+static inline void spirom_write_cmd(unsigned char cmd)
+{
+	spi_write_bytes(&cmd, NULL, sizeof(cmd));
+}
+
 static bool spirom_write_enable(void)
 {
-	const unsigned char cmd = SPI_CMD_WREN;
-
 	if (!spirom_wait_ready(1000))
 		return false;
 
-	spi_write_bytes(&cmd, NULL, sizeof(cmd));
+	spirom_write_cmd(SPI_CMD_WREN);
 	return spirom_read_status() & SPI_RDSR_WEL;
 }
 
@@ -289,23 +299,25 @@ static bool spirom_reset(void)
 		.tv_sec = 0,
 		.tv_nsec = 100000,
 	};
-	unsigned char cmd;
 
 	if (!spirom_wait_ready(1000))
 		return false;
 
-	cmd = 0x66;
-	spi_write_bytes(&cmd, NULL, sizeof(cmd));
+	spirom_write_cmd(0x66);
 	nanosleep(&req, NULL);
 
-	cmd = 0x99;
-	spi_write_bytes(&cmd, NULL, sizeof(cmd));
+	spirom_write_cmd(0x99);
 	nanosleep(&req, NULL);
 
 	return true;
 }
 
-static bool spirom_read_id(void)
+static inline void spirom_enter_otp(void)
+{
+	spirom_write_cmd(0xb1);
+}
+
+static int spirom_read_id(void)
 {
 	unsigned char cmd[] = { SPI_CMD_RDID, 0, 0, 0 };
 	unsigned char mem_type;
@@ -314,13 +326,15 @@ static bool spirom_read_id(void)
 	bool valid_density;
 
 	if (!spirom_wait_ready(1000))
-		return false;
+		return -1;
 
 	spi_write_bytes(cmd, cmd, sizeof(cmd));
 
-	printf("Manufacturer ID: %02x\n", cmd[1]);
-	printf("Memory type    : %02x\n", cmd[2]);
-	printf("Memory density : %02x\n", cmd[3]);
+	if (g_verbose) {
+		printf("Manufacturer ID: %02x\n", cmd[1]);
+		printf("Memory type    : %02x\n", cmd[2]);
+		printf("Memory density : %02x\n", cmd[3]);
+	}
 
 	mem_type = cmd[2];
 	mem_density = cmd[3];
@@ -340,21 +354,23 @@ static bool spirom_read_id(void)
 		break;
 	default:
 		fprintf(stderr, "wrong manufacturer id\n");
-		return false;
+		return -1;
 	}
 
 	if (!valid_type) {
 		fprintf(stderr, "wrong memory type\n");
-		return false;
+		return -1;
 	}
 
 	if (!valid_density) {
 		fprintf(stderr, "wrong memory density\n");
-		return false;
+		return -1;
 	}
 
-	printf("read id ok\n");
-	return true;
+	if (g_verbose)
+		printf("read id ok\n");
+
+	return cmd[1];
 }
 
 static bool spirom_sector_erase(unsigned int addr)
@@ -407,8 +423,6 @@ static bool spirom_page_program(unsigned int addr, const unsigned char *page, si
 
 static bool spirom_lock(void)
 {
-	const unsigned char cmd = SPI_CMD_GBLK;
-
 	if (!spirom_write_enable()) {
 		fprintf(stderr, "write enable failed\n");
 		return false;
@@ -417,14 +431,12 @@ static bool spirom_lock(void)
 	if (!spirom_wait_ready(1000))
 		return false;
 
-	spi_write_bytes(&cmd, NULL, sizeof(cmd));
+	spirom_write_cmd(SPI_CMD_GBLK);
 	return true;
 }
 
 static bool spirom_unlock(void)
 {
-	const unsigned char cmd = SPI_CMD_GBULK;
-
 	if (!spirom_write_enable()) {
 		fprintf(stderr, "write enable failed\n");
 		return false;
@@ -433,7 +445,7 @@ static bool spirom_unlock(void)
 	if (!spirom_wait_ready(1000))
 		return false;
 
-	spi_write_bytes(&cmd, NULL, sizeof(cmd));
+	spirom_write_cmd(SPI_CMD_GBULK);
 	return true;
 }
 
@@ -600,7 +612,120 @@ err:
 	return ret;
 }
 
-int main(int argc, char **argv)
+static int spi_bootstrap(unsigned int chip_id)
+{
+	int ret;
+
+	signal(SIGHUP, SIG_IGN);
+	signal(SIGINT, SIG_IGN);
+	signal(SIGTERM, SIG_IGN);
+
+	if (!spi_init(chip_id)) {
+		fprintf(stderr, "init failed\n");
+		return -1;
+	}
+
+	atexit(spi_exit);
+
+	if (!spirom_reset()) {
+		fprintf(stderr, "reset failed\n");
+		return -1;
+	}
+
+	ret = spirom_read_id();
+	if (ret == 0) {
+		fprintf(stderr, "read id failed\n");
+		return -1;
+	}
+
+	return ret;
+}
+
+static void spirom_dump(unsigned long addr, unsigned long count)
+{
+	void *buf;
+
+	buf = malloc(count);
+	if (buf == NULL) {
+		perror("malloc");
+		return;
+	}
+
+	spirom_read(addr, buf, count);
+	write(STDOUT_FILENO, buf, count);
+	free(buf);
+}
+
+static int readspi_main(int argc, char **argv)
+{
+	unsigned int chip_id;
+	unsigned long addr = 0;
+	unsigned long count = 0;
+	enum { SRC_MEM, SRC_OTP } src = SRC_MEM;
+	int mid;
+
+	static struct option long_options[] = {
+		{ "address", required_argument, 0, 'a' },
+		{ "count", required_argument, 0, 'c' },
+		{ "mem", no_argument, 0, 0 },
+		{ "otp", no_argument, 0, 0 },
+	};
+
+	for (;;) {
+		int option_index = 0;
+		int opt = getopt_long(argc, argv, "a:c:", long_options, &option_index);
+		if (opt < 0)
+			break;
+		switch (opt) {
+		case 0:
+			if (!strcmp(long_options[option_index].name, "mem"))
+				src = SRC_MEM;
+			else if (!strcmp(long_options[option_index].name, "otp"))
+				src = SRC_OTP;
+			break;
+		case 'a':
+			errno = 0;
+			addr = strtoul(optarg, NULL, 0);
+			if (errno != 0) {
+				perror("strtoul");
+				return 1;
+			}
+			if (addr >= 0x1000000)
+				return 1;
+			break;
+		case 'c':
+			errno = 0;
+			count = strtoul(optarg, NULL, 0);
+			if (errno != 0) {
+				perror("strtoul");
+				return 1;
+			}
+			break;
+		}
+	}
+
+	if (!detect_soc(&chip_id))
+		return 1;
+
+	mid = spi_bootstrap(chip_id);
+	if (mid < 0)
+		return 1;
+
+	if (src == SRC_OTP) {
+		if (mid != MANUF_ID_MACRONIX)
+			return 1;
+		spirom_enter_otp();
+	}
+
+	spirom_dump(addr, count);
+
+	if (src == SRC_OTP)
+		spirom_reset();
+
+	return 0;
+}
+
+static int writespi_main(int argc, char **argv)
 {
 	const char *partname = "kernel";
 	const struct flash_part *part = NULL;
@@ -631,6 +756,8 @@ int main(int argc, char **argv)
 
 	if (argc >= 3)
 		partname = argv[2];
+
+	g_verbose = true;
 
 	if (!detect_soc(&chip_id))
 		goto err;
@@ -676,30 +803,33 @@ int main(int argc, char **argv)
 		goto err;
 	}
 
-	signal(SIGHUP, SIG_IGN);
-	signal(SIGINT, SIG_IGN);
-	signal(SIGTERM, SIG_IGN);
-
-	if (!spi_init(chip_id)) {
-		fprintf(stderr, "init failed\n");
+	if (spi_bootstrap(chip_id) < 0)
 		goto err;
-	}
-
-	if (!spirom_reset()) {
-		fprintf(stderr, "reset failed\n");
-		goto err;
-	}
-
-	if (!spirom_read_id()) {
-		fprintf(stderr, "read id failed\n");
-		goto err;
-	}
 
 	if (write_file(fd, offset, st.st_size))
 		ret = 0;
 err:
-	spi_exit();
-
 	close(fd);
 	return ret;
+}
+
+static inline const char *__basename(const char *str)
+{
+	const char *slash;
+
+	slash = strrchr(str, '/');
+	if (slash)
+		return &slash[1];
+
+	return str;
+}
+
+int main(int argc, char *argv[])
+{
+	const char *name = __basename(argv[0]);
+
+	if (!strcmp(name, "readspi"))
+		return readspi_main(argc, argv);
+	else
+		return writespi_main(argc, argv);
 }

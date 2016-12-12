@@ -22,3 +22,4 @@ clean:
 install: $(TARGETS)
 	install -d $(DESTDIR)$(sbindir)
 	install -m 755 $(SCRIPTS) $(TARGETS) $(DESTDIR)$(sbindir)
+	ln -nsf writespi $(DESTDIR)$(sbindir)/readspi
