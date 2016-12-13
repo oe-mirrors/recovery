@@ -1,0 +1,58 @@
+#!/bin/sh
+#
+# Copyright (C) 2016 Dream Property GmbH
+#
+
+source librecovery
+
+read MID </proc/stb/info/mid
+OTP=$(readspi --otp -c 192 | base64 | tr -d '\n' | tr '+' '-' | tr '/' '_')
+SHA=$(readspi -c $((3*512*1024)) | sha256sum | awk '{print $1}')
+
+[ -n "${MID}" ] || abort 'Failed to read model ID'
+[ -n "${OTP}" ] || abort 'Failed to read OTP data'
+[ -n "${SHA}" ] || abort 'Failed to hash FSBL'
+
+URI="http://dreambox.de/verify/fsbl?m=${MID}&o=${OTP}&s=${SHA}"
+
+xgetopts $@
+create_workspace
+
+export GNUPGHOME="${WORKSPACE}"
+
+(base64 -d > trustedkeys.gpg || abort 'Failed to write public key') << EOF
+mQENBFhPLT4BCACu7IxjzWdrzWYh0lbFx9AvMmniszx67gAvvz0AMlug25TsVo+2u+YMacK5QX6b
+8GLkuUYCETZzadaSoOd3WqUadjmtgqa1+G4BZPEHSuyrmMGuathRWCHXJ0dXC7d41ckZS0ufpHM7
+/a9MBh4sJUdrVrGCvxfRYms/R3CrWJgEcZGgHfeS85XFTAQygALnLtk4j/12am9npLDOFAfxy5D1
+GOi832omdu+QeCLpBqjCXbYm3C6+Vwpkm/780o0tGAuogKhflsc0C9ax50oEtj/G7xLCoIjcKpxr
+mX3fh6kxD54mIj0nMSvSJiDkLICDBsKRuOJ+HCrqo0yK5r6LsH2TABEBAAG0NURyZWFtYm94IERN
+OTAwIChGU0JMIHVwZGF0ZSkgPGRtOTAwQGZzYmwuZHJlYW1ib3guZGU+iQE4BBMBAgAiBQJYTy0+
+AhsDBgsJCAcDAgYVCAIJCgsEFgIDAQIeAQIXgAAKCRBo07UpmBtXLJrCB/4u4tsMBivjsKlrGdvu
+/QiOO2+CO2XXItfFctyOgUsqIUonYAJK6BUv2rb0wMqSjwGcqjQjqdtefe4aILqZKqjlyneIkyrx
+J7e/W24g43xo6tVGQuX8RXXEGeN2NaqVL3HUi+BAvPwAqZujQn0RA8VLE8U5KrdAhKm5VxcnHurh
+AaqnV6GBTmjIqJSLMzIcUAqi4Y1Pv2FfHMYJZetArH0CQFH2BZthhheWj/BvKOSBJUFMcWGpwZeo
+sPMw9rDJPziwiMhLqFlLip3bk4PU1NSSluTvPyxoVh43P4flCSuvZKZgz/aJ+6IB8O1SYLPRu+51
+kII48WItRJMlH2Fpur47uQENBFhPLT4BCACyzVlv6Ne3JodR+yihnizl622H8xstIqXVVXnmUwBR
+rbQg4/NpqtDNEIh1GdhLgE3F+dFMRBlNFsGcHbEhmB9Gn0LNHFjDkKB4/LFqVh2k4aemRF6xafkd
+kZNwMU390OG21AgxGYoOP/YDqHKEdQ0+H+1qjyIuCu66UwX1U22Y6si9iXhBVXEkv+Ga4b1LMCoX
+M/664oeU2hey7UcWkiFibJ8E2jLGIu4+8wNBDvt9I+2p6gSlu6xwvUSmpBhU+wo2/+uav7WAb6Ub
+bpRZ6URvb2F0o2xSJ7FlRYyGGCcOXcLYRQzUt2ataS7th1/NNKmtSUFwCemrQJU9Lpt+NtHPABEB
+AAGJAR8EGAECAAkFAlhPLT4CGwwACgkQaNO1KZgbVyy4pgf/TVckA31sAHQXwkzvF5rmRo/KqBBL
+pRtCaY+48l/Ac5aXT1evsjRZKBCkU4QOkJsytP0E3Rj/o8kAcT34uS+7J4xZGdyM+hcR6huA4CDK
+z6gz3op9mGHF0PIbY7cm6tu+k32iuy+Tp5a3oPywUSkoMw8FT6GwmSf3VADOMR3TdiTP9XRvhgGW
+qCtHm0s91wOwsYifEDyNLg39QW801YXKup7Gj7E0u8p1c9Ey+Gifio/YrAB4YaJuP0uaM2Mt6OJp
+kl9JWN12d5M7linrcbpm2/WpzKzSfw5LEtzZSeEO0CaYRwhoYKxUsaMZwMFGtuUDw34RbHDqfpok
+s3F9cSJ97g==
+EOF
+
+info "Downloading '${URI}'"
+wget -q "${URI}" -O fsbl-flasher.tgz >&3 2>&4
+
+create_directory fsbl-flasher
+extract_tarball fsbl-flasher.tgz fsbl-flasher
+verify fsbl-flasher/fsbl-flasher
+
+info "Running fsbl-flasher"
+chmod 755 fsbl-flasher/fsbl-flasher || abort "Failed to set execute permissions"
+xtrap fsbl-flasher/fsbl-flasher || abort "Failed to execute fsbl-flasher"
+info "Done."

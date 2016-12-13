@@ -7,7 +7,7 @@ sbindir ?= $(exec_prefix)/sbin
 override CFLAGS := $(CFLAGS) -Wall -std=c99
 override CPPFLAGS := $(CPPFLAGS) -DNDEBUG
 
-SCRIPTS := backup-settings backup-tarball flash-kernel flash-rescue flash-tarball help librecovery recovery run-recovery restore-settings
+SCRIPTS := backup-settings backup-tarball flash-fsbl flash-kernel flash-rescue flash-tarball help librecovery recovery run-recovery restore-settings
 TARGETS := to-the-rescue writespi
 
 default: $(TARGETS)
