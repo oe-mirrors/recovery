@@ -91,7 +91,11 @@ is_mountpoint()
 
 is_mounted()
 {
-	is_mountpoint "${2}" && [ `mountpoint -x "${1}"` = `mountpoint -d "${2}"` ]
+	if is_blockdev "${1}"; then
+		is_mountpoint "${2}" && [ `mountpoint -x "${1}"` = `mountpoint -d "${2}"` ]
+	else
+		is_mountpoint "${2}" && grep -q "^${1}\s${2}\s" /proc/mounts
+	fi
 }
 
 cleanup()
