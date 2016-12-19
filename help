@@ -1,4 +1,7 @@
 #!/bin/sh
+#
+# Copyright (C) 2016 Dream Property GmbH
+#
 
 IP=`ip -f inet -o address show dev eth0 | awk '{print $4}' | sed -e 's,/.*,,'`
 
@@ -30,9 +33,26 @@ cat << EOF
 In case you don't mind using the shell, you might be interested in one of the
 following commands:
 
+EOF
+if run-recovery -h >/dev/null 2>&1; then
+	cat << EOF
 run-recovery: Fetches a recovery firmware image from the internet or internal
 memory (if available) and installs it, replacing the current operating system.
 
+EOF
+fi
+if select-boot-source -h >/dev/null 2>&1; then
+	cat << EOF
+select-boot-source [A|B|C]: Used to select between two possible kernel images
+(A or B) and the optional second stage bootloader (C). Original firmware uses
+option A, which can be selected by running "select-boot-source A".
+
+EOF
+fi
+if flash-tarball -h >/dev/null 2>&1; then
+	cat << EOF
 flash-tarball: Flashes a firmware file provided by you, either on internal or
 external memory, or via local area network. See "flash-tarball -h".
+
 EOF
+fi
