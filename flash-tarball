@@ -33,7 +33,7 @@ FILENAME=`xrealpath ${1}`
 
 assert_rescue_mode
 
-is_writable_blockdev "${MMC_DEVICE}" || abort "Target block device '${MMC_DEVICE}' is not a writable block device"
+is_writable_blockdev "${FLASH_DEVICE}" || is_writable_chardev "${FLASH_DEVICE}" || abort "Target device '${FLASH_DEVICE}' is not writable"
 ! is_empty "${FILENAME}" || abort "No tarball filename given"
 is_readable_file "${FILENAME}" || abort "Cannot access '${FILENAME}'"
 
@@ -41,33 +41,49 @@ create_workspace
 
 mount_cache
 
+if [ -n "${UBI_DEVICE}" ] && ! is_chardev "${UBI_DEVICE}" && ! attach_ubi_device "${FLASH_DEVICE}"; then
+	erase "${FLASH_DEVICE}" || abort "Failed to erase ${FLASH_DEVICE}"
+	format_ubi_device "${FLASH_DEVICE}" || abort "Failed to format ${FLASH_DEVICE}"
+	attach_ubi_device "${FLASH_DEVICE}" || abort "Failed to attach ${FLASH_DEVICE} to UBI"
+fi
+
 [ ! -f "${RECOVERY_CACHE}/settings.tar.gz" ] || cp ${RECOVERY_CACHE}/settings.tar.gz ${SETTINGS}
-if blkdev_has_filesystem "${ROOT_PARTITION}"; then
+if blkdev_has_filesystem "${ROOT_PARTITION}" || is_chardev "${ROOT_PARTITION}"; then
 	${BACKUP_SETTINGS}
 fi
 [ "${RESTORE_SETTINGS}" = ":" -o -f "${SETTINGS}" ] || abort "Can't restore settings without prior backup!"
 
-if ! is_blockdev "${ROOT_PARTITION}" || ! blkdev_has_filesystem "${DATA_PARTITION}"; then
-	if is_beneath_directory "${FILENAME}" "${DATA_MOUNTPOINT}"; then
-		xcp "${FILENAME}" .
-		FILENAME=`basename "${FILENAME}"`
+unmount "${ROOT_MOUNTPOINT}" || abort "Failed to unmount root filesystem"
+
+if [ -n "${UBI_DEVICE}" ]; then
+	if is_chardev "${ROOT_PARTITION}"; then
+		remove_ubi_volume || abort "Failed to remove UBI volume"
 	fi
-	unmount "${ROOT_MOUNTPOINT}" || abort "Failed to unmount root filesystem"
-	unmount "${DATA_MOUNTPOINT}" || abort "Failed to unmount data filesystem"
-	if ! is_blockdev "${ROOT_PARTITION}" || ! is_blockdev "${DATA_PARTITION}"; then
-		create_partition_table "${MMC_DEVICE}" || abort "Failed to partition disk"
+
+	create_ubi_volume || abort "Failed to create UBI volume"
+	udevadm settle
+	create_nand_filesystem "${ROOT_PARTITION}" || abort "Failed to create ${FILESYSTEM} filesystem on '${ROOT_PARTITION}'"
+else
+	if ! is_blockdev "${ROOT_PARTITION}" || ! blkdev_has_filesystem "${DATA_PARTITION}"; then
+		if is_beneath_directory "${FILENAME}" "${DATA_MOUNTPOINT}"; then
+			xcp "${FILENAME}" .
+			FILENAME=`basename "${FILENAME}"`
+		fi
+		unmount "${DATA_MOUNTPOINT}" || abort "Failed to unmount data filesystem"
+		if ! is_blockdev "${ROOT_PARTITION}" || ! is_blockdev "${DATA_PARTITION}"; then
+			create_partition_table "${FLASH_DEVICE}" || abort "Failed to partition disk"
+		fi
+		if ! blkdev_has_filesystem "${DATA_PARTITION}"; then
+			create_filesystem "${DATA_NAME}" "${DATA_PARTITION}" || warn "Failed to create ${FILESYSTEM} filesystem '${DATA_NAME}' on '${DATA_PARTITION}'"
+		fi
+		mount_cache
 	fi
-	if ! blkdev_has_filesystem "${DATA_PARTITION}"; then
-		create_filesystem "${DATA_NAME}" "${DATA_PARTITION}" || warn "Failed to create ${FILESYSTEM} filesystem '${DATA_NAME}' on '${DATA_PARTITION}'"
-	fi
-	mount_cache
+	create_filesystem "${ROOT_NAME}" "${ROOT_PARTITION}" || abort "Failed to create ${FILESYSTEM} filesystem '${ROOT_NAME}' on '${ROOT_PARTITION}'"
 fi
 
-unmount "${ROOT_MOUNTPOINT}" || abort "Failed to unmount root filesystem"
-create_filesystem "${ROOT_NAME}" "${ROOT_PARTITION}" || abort "Failed to create ${FILESYSTEM} filesystem '${ROOT_NAME}' on '${ROOT_PARTITION}'"
 safe_mount "${ROOT_PARTITION}" "${ROOT_MOUNTPOINT}" || abort "Failed to mount root filesystem"
 extract_tarball "${FILENAME}" "${ROOT_MOUNTPOINT}" || abort "Failed to extract root filesystem"
-run_postinsts "${ROOT_MOUNTPOINT}" kernel-image || abort "Failed to run postinst scripts"
+run_postinsts "${ROOT_MOUNTPOINT}" ${POSTINSTS} || abort "Failed to run postinst scripts"
 ${RESTORE_SETTINGS}
 unmount "${ROOT_MOUNTPOINT}" || warn "Failed to unmount root filesystem"
 
