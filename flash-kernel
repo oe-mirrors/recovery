@@ -5,22 +5,131 @@
 
 source librecovery
 
-MAX_IMAGE_SIZE=$((31 * 1024 * 1024))
+case "${MACHINE}" in
+	dm820|dm7080)
+		MEM_SIZE=0x10000000
+		ARC_IMAGES=/usr/share/fastboot/lcd_anim.bin
+		OPTION=A
+		CMDLINE=
+		INITRD=
+		OPTSTRING="a:c:hi:m:o:qtv"
+		;;
+	*)
+		OPTSTRING="hqtv"
+		;;
+esac
+
+create_blob()
+{
+	ARGS="-m ${MEM_SIZE} -o ${1}"
+	INDEX=0
+	IFS=:
+	for FILE in ${ARC_IMAGES}; do
+		if is_readable_file "${FILE}"; then
+			ARGS="${ARGS} -f ${FILE} -t arc -i ${INDEX}"
+			INDEX=$((${INDEX} + 1))
+		fi
+	done
+	unset IFS
+	if is_readable_file "${INITRD}"; then
+		ARGS="${ARGS} -f ${INITRD} -t initrd"
+	fi
+	if ! is_empty "${CMDLINE}"; then
+		echo -n "${CMDLINE}" > cmdline.txt
+		ARGS="${ARGS} -f cmdline.txt -t cmdline"
+	fi
+	ARGS="${ARGS} -f ${VMLINUX} -t kernel -d 0x1000"
+
+	info "Creating boot image"
+	mkbootblob ${ARGS} >&3 2>&4
+}
+
+write_blob()
+{
+	case "${3}" in
+		A)
+			write_lba "${1}" "${2}" 16384
+			;;
+		B)
+			write_lba "${1}" "${2}" 81920
+			;;
+	esac
+}
 
 usage()
 {
-	echo "Usage: ${0} [-hqtv] <zImage.bin>"
+	case "${MACHINE}" in
+		dm820|dm7080)
+			echo "Usage: ${0} [-hqtv] [-a <arc images>] [-c <cmdline>] [-i <initrd>] [-m <mem-size>] [-o A|B] <vmlinux.bin>"
+			echo "       Default: -a ${ARC_IMAGES} -m ${MEM_SIZE} -o ${OPTION}"
+			;;
+		*)
+			echo "Usage: ${0} [-hqtv] <kernel-image>"
+			;;
+	esac
 	exit ${1}
 }
 
-xgetopts $@
+while getopts ${OPTSTRING} opt; do
+	case "${opt}" in
+		a)
+			ARC_IMAGES="${OPTARG}"
+			;;
+		c)
+			CMDLINE="${OPTARG}"
+			;;
+		i)
+			INITRD="${OPTARG}"
+			;;
+		m)
+			MEM_SIZE="${OPTARG}"
+			;;
+		o)
+			OPTION="${OPTARG}"
+			;;
+	esac
+	std_opt "${opt}"
+done
+
 shift $((${OPTIND} - 1))
 [ "$#" -eq 1 ] || usage 1
 VMLINUX=`xrealpath ${1}`
 
-is_writable_blockdev "${KERNEL_PARTITION}" || abort "Target block device '${KERNEL_PARTITION}' is not a writable block device"
 ! is_empty "${VMLINUX}" || abort "No kernel image given"
 is_readable_file "${VMLINUX}" || abort "Cannot access '${VMLINUX}'"
+is_file_size_le "${VMLINUX}" "${KERNEL_SIZE}" || abort "Kernel image is too big"
 
-is_file_size_le "${VMLINUX}" "${MAX_IMAGE_SIZE}" || abort "Kernel image is too big"
-write_blkdev "${VMLINUX}" "${KERNEL_PARTITION}" || abort "Failed to flash kernel image"
+DEVICE=${KERNEL_PARTITION:-${FLASH_DEVICE}}
+is_writable_blockdev "${DEVICE}" || is_writable_chardev "${DEVICE}" || abort "Target device '${DEVICE}' is not writable"
+
+case "${MACHINE}" in
+	dm520)
+		erase "${DEVICE}" || abort "Failed to erase ${DEVICE}"
+		write_nand "${DEVICE}" "${VMLINUX}" || abort "Failed to flash kernel image"
+		;;
+	dm820|dm7080)
+		IFS=:
+		for FILE in ${ARC_IMAGES}; do
+			is_readable_file "${FILE}" || abort "Cannot access '${FILE}'"
+		done
+		unset IFS
+		is_empty "${INITRD}" || is_readable_file "${INITRD}" || abort "Cannot access '${INITRD}'"
+
+		case "${OPTION}" in
+			A|B)
+				;;
+			*)
+				abort "Invalid boot option: ${OPTION}"
+				;;
+		esac
+
+		create_workspace
+		create_blob bootblob.bin || abort "Failed to create boot image"
+		is_file_size_le bootblob.bin "${KERNEL_SIZE}" || abort "Boot image is too big"
+		write_blob bootblob.bin "${DEVICE}" "${OPTION}" || abort "Failed to flash boot image"
+		select_boot_source "${DEVICE}" "${OPTION}" || abort "Failed to enable boot source"
+		;;
+	dm900)
+		write_blkdev "${VMLINUX}" "${DEVICE}" || abort "Failed to flash kernel image"
+		;;
+esac
