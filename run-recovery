@@ -5,7 +5,7 @@
 
 source librecovery
 
-BASE_URI=http://dreamboxupdate.com/download/recovery/dm900/release
+BASE_URI=http://dreamboxupdate.com/download/recovery/${MACHINE}/release
 FILENAME=recovery
 
 while getopts bhqrtv opt; do
@@ -13,23 +13,7 @@ while getopts bhqrtv opt; do
 done
 assert_rescue_mode
 create_workspace
-
-export GNUPGHOME="${WORKSPACE}"
-
-(base64 -d > trustedkeys.gpg || abort 'Failed to write public key') << EOF
-mQENBFfS0TQBCADLP/mDLWiIF/dJmVFVzQf9CJ7jtb5ilVf4SOasXkPEbdtDsvIIE8ShAHPUgmYC
-YGAl5FJNxaPZMhyylC9BZOLeYdUgJVRJXjY2WX/bE/6/J5z9UWj+XPzbnbxC+ZnzOGwyUAiHtwbF
-YLH0SnCN6LEl+nqgwRwpKBgFp64YyAAJ/Rpj5tK6T9v5QuN5CK/UcClmLSqlC/KSbjf93+W9AyOM
-9F/apxNnhWyEPPjEQbJV8G1WTDL12j4NER3CwwGr+WlKidNdtqDZYYMx89p/qLoV0kbk8tOB7Szx
-STFQIpetPi++WlKduS5K1gmVYSU8v9WdSAIDujbH1lqOtBq6AaIFABEBAAG0NERyZWFtYm94IERN
-OTAwIFJlY292ZXJ5IDxkbTkwMEByZWNvdmVyeS5kcmVhbWJveC5kZT6JATgEEwECACIFAlfS0TQC
-GwMGCwkIBwMCBhUIAgkKCwQWAgMBAh4BAheAAAoJEPAqD3Z9onVhi9YIALa4eA9XRbyNT/kz2fj9
-gJ9aLfoxPACbkc2pxwVmLtqeCvsgzEvG62QkFwfL+HDQy2G3YgOSYM8/Z1Y8Agp0iS/QNzNE9v7u
-cniOy7bX+L+M/zZtLnmY4ixIWcPdMraipjaH3v1c9SUg4eeN6WRgQnPmDA2w+PBViXoAAuqKQrG/
-7DrGLzXiUzRgxoub4hm1au6KSnEgthn7O33dtCKRDwlCFDHNqdOpgayfGKZ+ENrP5FPZIuSmJH+Z
-GWxsi2P4cmVwsSE0i1REX3pk1xd4lefdmminxhgsrHnlh4q5O6fSrSlIfNKZ3SZZ3KeSCB21g/9L
-5jAezlvBvp2M0qC2EDQ=
-EOF
+create_keyring "${RECOVERY_KEY}"
 
 mount_cache
 fetch_signed "${BASE_URI}" "${FILENAME}"
