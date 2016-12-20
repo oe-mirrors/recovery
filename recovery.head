@@ -1,0 +1,6 @@
+#!/bin/sh
+#
+# Copyright (C) 2016 Dream Property GmbH
+#
+
+(base64 -d | tar -xz) <<EOF

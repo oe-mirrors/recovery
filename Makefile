@@ -7,10 +7,16 @@ sbindir ?= $(exec_prefix)/sbin
 override CFLAGS := $(CFLAGS) -Wall -std=c99
 override CPPFLAGS := $(CPPFLAGS) -DNDEBUG
 
-SCRIPTS := backup-settings backup-tarball flash-fsbl flash-kernel flash-rescue flash-ssbl flash-tarball help librecovery recovery run-recovery restore-settings select-boot-source
-TARGETS := to-the-rescue writespi
+SCRIPTS := backup-settings backup-tarball flash-fsbl flash-kernel flash-rescue flash-ssbl flash-tarball help librecovery run-recovery restore-settings select-boot-source
+TARGETS := recovery to-the-rescue writespi
 
 default: $(TARGETS)
+
+recovery: flash-tarball librecovery recovery.head recovery.tail
+	cat recovery.head > $@
+	tar --owner root --group root -cz flash-tarball librecovery | base64 >> $@
+	cat recovery.tail >> $@
+	chmod 755 recovery
 
 to-the-rescue: io.o
 

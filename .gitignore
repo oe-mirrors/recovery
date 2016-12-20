@@ -1,4 +1,5 @@
 *.o
 *.swp
+recovery
 to-the-rescue
 writespi

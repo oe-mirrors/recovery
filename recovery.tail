@@ -1,0 +1,9 @@
+EOF
+
+export PATH="$PWD:$PATH"
+
+source librecovery
+
+flash-tarball $@ "http://dreamboxupdate.com/download/recovery/${MACHINE}/release/dreambox-image-${MACHINE}.tar.xz"
+info "Initiating reboot"
+sync && reboot || warn 'Failed to initiate reboot'
