@@ -19,3 +19,4 @@ FILENAME=`xrealpath ${1}`
 ! is_empty "${FILENAME}" || abort "No rescue image given"
 is_readable_file "${FILENAME}" || abort "Cannot access '${FILENAME}'"
 writespi ${FILENAME} kernel || abort "Failed to write rescue image"
+rm -f /etc/.rescue-update-suggested
