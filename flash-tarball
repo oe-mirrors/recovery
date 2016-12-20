@@ -96,6 +96,9 @@ safe_mount "${ROOT_PARTITION}" "${ROOT_MOUNTPOINT}" || abort "Failed to mount ro
 extract_tarball "${FILENAME}" "${ROOT_MOUNTPOINT}" || abort "Failed to extract root filesystem"
 run_postinsts "${ROOT_MOUNTPOINT}" ${POSTINSTS} || abort "Failed to run postinst scripts"
 ${RESTORE_SETTINGS}
+if is_legacy_version && [ -d "${ROOT_MOUNTPOINT}/etc" ]; then
+	touch "${ROOT_MOUNTPOINT}/etc/.rescue-update-suggested"
+fi
 unmount "${ROOT_MOUNTPOINT}" || warn "Failed to unmount root filesystem"
 
 [ "${BACKUP_SETTINGS}" = ":" ] || update_cache "${SETTINGS}"
