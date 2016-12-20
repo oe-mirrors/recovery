@@ -130,7 +130,6 @@ librecovery_init()
 	case "$MACHINE" in
 		dm520)
 			FLASH_DEVICE="/dev/mtd0"
-			MTD_DEVICE="${FLASH_DEVICE}"
 			UBI_ID="0"
 			UBI_DEVICE="/dev/ubi${UBI_ID}"
 			UBI_VOL_ID="0"
@@ -138,7 +137,6 @@ librecovery_init()
 			;;
 		dm820|dm900|dm7080)
 			FLASH_DEVICE="/dev/mmcblk0"
-			MMC_DEVICE="${FLASH_DEVICE}"
 			FILESYSTEM="ext4"
 			;;
 	esac
