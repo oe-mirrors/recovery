@@ -14,11 +14,15 @@ usage()
 BACKUP_SETTINGS=":"
 RESTORE_SETTINGS=":"
 SETTINGS="settings.tar.gz"
+UPDATE_CACHE_SIGNED=":"
 
-while getopts bhqrtv opt; do
+while getopts bchqrtv opt; do
 	case "${opt}" in
 		b)
 			BACKUP_SETTINGS="backup-settings ${SETTINGS}"
+			;;
+		c)
+			UPDATE_CACHE_SIGNED="update_cache_signed"
 			;;
 		r)
 			RESTORE_SETTINGS="restore-settings ${SETTINGS}"
@@ -102,7 +106,7 @@ fi
 unmount "${ROOT_MOUNTPOINT}" || warn "Failed to unmount root filesystem"
 
 [ "${BACKUP_SETTINGS}" = ":" ] || update_cache "${SETTINGS}"
-[ -z "${BASE_URI}" ] || update_cache_signed "${FILENAME}"
+[ -z "${BASE_URI}" ] || ${UPDATE_CACHE_SIGNED} "${FILENAME}"
 unmount_cache
 
 info "Finished successfully. You may reboot now."
