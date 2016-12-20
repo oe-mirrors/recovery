@@ -7,6 +7,7 @@ ROOT_NAME=dreambox-rootfs
 DATA_MOUNTPOINT=/data
 DATA_NAME=dreambox-data
 RECOVERY_CACHE=${DATA_MOUNTPOINT}/.recovery
+LEGACY=false
 
 MOUNTPOINTS=
 WORKSPACE=
@@ -24,6 +25,7 @@ librecovery_init()
 	eval `tpm-ca 2>/dev/null | grep '^CA_[A-Z]\+=[A-Z0-9:_-]\+$'`
 	if [ -z "$CA_MID" ]; then
 		warn "Could not read CA!"
+		mark_legacy_version
 	elif [ "$MID" != "$CA_MID" ]; then
 		warn "Detected incompatible drivers!"
 		MID="$CA_MID"
@@ -336,6 +338,7 @@ blkdev_has_filesystem()
 		if hash blkid 2>/dev/null; then
 			blkid -o export "${1}" | grep -q "^TYPE=${FILESYSTEM}$"
 		else
+			mark_legacy_version
 			local dir=`mktemp -d -p ${WORKSPACE}` || abort 'Failed to create temporary mount point'
 			grep -q "^${1}\s[^\s]\+\s${FILESYSTEM}\s" /proc/mounts || (mount -t ${FILESYSTEM} -o ro "${1}" "${dir}" 2>/dev/null && umount "${dir}")
 		fi
@@ -390,6 +393,7 @@ create_partition_table()
 	if hash sgdisk 2>/dev/null; then
 		xtrap sgdisk -z ${SGDISK_ARGS} "${1}"
 	else
+		mark_legacy_version
 		xtrap parted --script --align=optimal "${1}" -- mklabel gpt ${PARTED_ARGS}
 	fi
 }
@@ -745,6 +749,17 @@ compatible()
 	done
 
 	abort "Unimplemented command."
+}
+
+mark_legacy_version()
+{
+	${LEGACY} || warn "Please consider updating your rescue loader!"
+	LEGACY=:
+}
+
+is_legacy_version()
+{
+	${LEGACY}
 }
 
 librecovery_init
