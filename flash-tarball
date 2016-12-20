@@ -29,17 +29,28 @@ done
 
 shift $((${OPTIND} - 1))
 [ "$#" -eq 1 ] || usage 1
-FILENAME=`xrealpath ${1}`
+FILENAME="${1}"
 
 assert_rescue_mode
 
 is_writable_blockdev "${FLASH_DEVICE}" || is_writable_chardev "${FLASH_DEVICE}" || abort "Target device '${FLASH_DEVICE}' is not writable"
 ! is_empty "${FILENAME}" || abort "No tarball filename given"
-is_readable_file "${FILENAME}" || abort "Cannot access '${FILENAME}'"
 
 create_workspace
+create_keyring "${RECOVERY_KEY}"
 
 mount_cache
+case "${FILENAME}" in
+	*://*)
+		BASE_URI="$(dirname ${FILENAME})"
+		FILENAME="$(basename ${FILENAME})"
+		fetch_signed "${BASE_URI}" "${FILENAME}"
+		;;
+	*)
+		FILENAME=`xrealpath ${FILENAME}`
+		is_readable_file "${FILENAME}" || abort "Cannot access '${FILENAME}'"
+		;;
+esac
 
 if [ -n "${UBI_DEVICE}" ] && ! is_chardev "${UBI_DEVICE}" && ! attach_ubi_device "${FLASH_DEVICE}"; then
 	erase "${FLASH_DEVICE}" || abort "Failed to erase ${FLASH_DEVICE}"
@@ -88,6 +99,7 @@ ${RESTORE_SETTINGS}
 unmount "${ROOT_MOUNTPOINT}" || warn "Failed to unmount root filesystem"
 
 [ "${BACKUP_SETTINGS}" = ":" ] || update_cache "${SETTINGS}"
+[ -z "${BASE_URI}" ] || update_cache_signed "${FILENAME}"
 unmount_cache
 
 info "Finished successfully. You may reboot now."
