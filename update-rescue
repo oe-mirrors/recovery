@@ -5,7 +5,7 @@
 
 source librecovery
 
-URI="http://dreamboxupdate.com/download/recovery/${MACHINE}/release/rescue-image.bin"
+URI="http://dreamboxupdate.com/download/recovery/${MACHINE}/release/rescue-image-${MACHINE}.bin"
 
 usage()
 {
