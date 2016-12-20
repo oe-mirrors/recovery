@@ -489,6 +489,70 @@ create_keyring()
 	echo "${1}" | base64 -d > trustedkeys.gpg || abort 'Failed to write public key'
 }
 
+create_keyring_for_uri()
+{
+	KEY_DORA="
+		mQENBFQa0QwBCACe+mzu7j7Gc4Ew4XUK1b84lgv2ABXCeZqBBQtgat5f9zbPCClEoNBz6csWND0z
+		x/km+YxPSfF7eYeSPjY6GifiduhkxQP/7oqyhzlW54ZwoCRgVGyzhir5oCszXQm3TvDYoqakrBNS
+		bJ4rNoaDqdA5RdEtvBEIHH33iJakD+7pUYEkPcXZiwV7R2hA3kfiwSjIVsmc5qI0u7KxBgkerBg7
+		DkImwzxd2jim1hUvZYSjz/u5dL/AwL/gPSEI/8UqnU7wuuT01UlJ1bFOQtnYi24aoC0Yr7bHQOwm
+		CIvHSyaKLzU5UWj0nVmN6bmcpUKzonYtD4y4UtqNlleK4K/9F9EhABEBAAG0R29wZW5kcmVhbWJv
+		eCByZXBvc2l0b3J5IHNpZ25pbmcga2V5ICgyLjIpIDxyZXBvc2l0b3J5QG9wZW5kcmVhbWJveC5v
+		cmc+iQE3BBMBCgAhBQJUGtEMAhsDBQsJCAcDBRUKCQgLBRYDAgEAAh4BAheAAAoJEI4TTvLqUk9F
+		8doH/1nhb/sXXTdTqBe0Az/aLUJdSO9akuJHTisSXoF1CZnADgIOYhJRVzBGDLEBqqrTYDAJolQ2
+		Rec4+68fuEAIZ2ai2zWEIO9liGTQJMzNnaJpAaWmzy/8ur1aAOY5UY2fP6pJmjeoMHxr2swo5VJ8
+		DzRv6QASnaiai3trRRTwzmA60AM8eXYRNqXE2OCroC7Q//YHvi0nxvFC1trfffajvfz9kr949Sfx
+		HYJYsrIMu/JaYrAUkKkR/ZG3UgXth8tQpAUMBcus4kBjsLvF6eMtninkkqfhcW0wpabhI6ZZo/bQ
+		iUTgCbzU8P8qgOLed2yVo8VoMjDTRfKFexbhGh3+CzSwAgADuQENBFQa0QwBCAC654L/wqPPd/+F
+		3zND16SJhlvCXfHbkhzo3QsPfRudmcrSYuH32p2/qlaKzRn4ifTkWPokG67yZbQRkcb6lXqOEGmL
+		K5YM+IAox+7nkGlt1FcmDx6NPL7kEW5XvVzctILOYrljjqNmC6A+qdjZRGeeDUHILou7gH+QSp+1
+		UBjPnF2YF98GTFlKKw6CMuTaqDaica4iNu7aSO4TfM6tlZBM6bS/39dSWVeDgGls5xLySD12EB5d
+		QLRZl1HqZhKroJh7KFiK5gaEj5fnxpeZ0waKQzT1lq+U0n0pR1xu92Axpx7wyp07ka0nzQ9YESZI
+		LO8xOP7W7PtutFX5fOoX391/ABEBAAGJAR8EGAEKAAkFAlQa0QwCGwwACgkQjhNO8upST0WqFgf/
+		aaovcygJPQhcvCpHuM8KHLJFrkeKan5/M/QrELTlHc3cPmk+MyaweHGETaom3H9RSxPrXYXnma9H
+		g6a110mq4x2vzXsZXpemakctale+QTlhc28uumExR+MfBoghEkwpnWBpFCH41aDpNWasVhm686Pt
+		YXiVcacwZ6gX59CHmpkFZsBv8glONlowJ1ml1UKSR1ZYUTPnxi6VnEfbxlrfZgM4l2uG2CrexnKv
+		ZSFMBsY0WstRD8LIp2opYqvnNjox2o/Ko60n4shlYcys0vxZLrr19tsLlv5vtgAowMRWrs/HHlpx
+		i9iBdbf9gVNyLI5TG9vH9DwJ4IbhLE+XFAr5x7ACAAM=
+	"
+	KEY_KROGOTH="
+		mQENBFf2sl4BCADLOA4VixBkeZahH8JDHH5MzJllK0OSmWBsK0LPBD3DPc+nci5lceDzY1HuHpG6
+		iqpkCU8Dsr9TYfpLjLBMUoAOXDxcdU/GVQ1U3Of/1fhG+ZNb2GhiP4vR9omPeujkKmmcgaViR9ia
+		px/DIcMCnx95WgZ4KBTH9OGgrYI0jHaBi4RcJPzDyNB/B8p/tMEx2PRXjecubr3FPY+bJDR3bPLS
+		sjgU6Gj6VHRz90couUJQ70ZayXUSAEB0Xu6NhszjOKWZO52PD+nLe5KUkVYCi2h9/XX/h1m4Cfg9
+		NEMy6UpCl86cA6LGuFQ+cTkfaGLkCUYHlWDBeo7AVsYnj+lQuWnfABEBAAG0R29wZW5kcmVhbWJv
+		eCByZXBvc2l0b3J5IHNpZ25pbmcga2V5ICgyLjUpIDxyZXBvc2l0b3J5QG9wZW5kcmVhbWJveC5v
+		cmc+iQE4BBMBAgAiBQJX9rJeAhsDBgsJCAcDAgYVCAIJCgsEFgIDAQIeAQIXgAAKCRB7dL9J+iIE
+		59cEB/oDMdR5DqNMh6ZLdWWLMmtILw8SQ8S1nDsBVqm9uJYY6bM3WglPeAPR5GW21C/sCKVXHBI9
+		yIzvd3C8XnCP11rNHVOgN5fo7JMMPrZNvZr9mFP6mXBPvTjm5zlGZVPp33ajDANvjyRNwWeZOGI0
+		IEYmeKTt02lnncGwLyBfic06sp9Yz4e8qW2KVErEg9pWsakhxJzQrJRvMF9w9AzeIelQqcJEwd+v
+		PTFxW77/r+vQbinW8fKxPHMuVFkJiF9evfHyUDcLepe9Zgetve/Z73KIBjjk8PX5UAJqAKT0rNCc
+		kDLoJ9bq6USze9RQNmqEfA/Sr9P8ezkrzvsXftP3EnjPuQENBFf2sl4BCADMAna974PotpvcYMgR
+		1ch/71SljKqTZbsSVeamkdwSwmpxmeEfH5iIA3phaAAJ5OjVc7sSMX8EJU8nszIo7eIaO4aoQdgN
+		g86H7JVMBc4gGxQAfUPcp6oiKcyufZdz52xT8qyFmzpwiwVNg60I5eTRRHOdv14+SniipOG0jqNA
+		elHQm9BJwPh4ohRAgK8QOoPTitq/llSOnxZyX09LjMmtyUPtiCbH4OtKYAYcj5GsDVpb14+Tz4NC
+		B9tx/mEzfUGr5SpmKaorqSDMXxJZ6jtoFXUXTw2qjsLWESwHyVD6s4ugfDfsMQzMEIuSDzeGF6u0
+		E6ADndlf1W9Y+apyDUfFABEBAAGJAR8EGAECAAkFAlf2sl4CGwwACgkQe3S/SfoiBOdJ1wf+JXWL
+		w2E3rkObvzXdsfiO1VvS6YpTY5v6M4AtG+t5R9/gkMooYiCTWGrKTsIPttwKvaEE3CpX0tcFCPc/
+		n7hEiJD6xIhoXx1OJH52Svc4oOhHTmBCpuMtAvtBsBMm4OJg8tLDb7I/OXdpJT+YUNhxfs2+/u/3
+		75H8Mf2pUDfu58gHpaH6cHcRypRKJTWYuagBZ+jEKl1zpAkqQMPQxGET/wWhisZwwS680qBkL+iO
+		85jokbt9hbFYvvi6qM0WqkqN9wiIKAXlJn4Yri6sXlwGltTdfE72h7cWJfdi7wTLu1W1mVVBtsds
+		7fDteCBdzElW9pWpNlRWRu85cIBMBExCrQ==
+	"
+
+	case "$1" in
+		*dreamboxupdate.com/opendreambox/2.2/*/${MACHINE}/*)
+			create_keyring "${KEY_DORA}"
+			;;
+		*dreamboxupdate.com/opendreambox/2.5/*/${MACHINE}/*)
+			create_keyring "${KEY_KROGOTH}"
+			;;
+		*)
+			create_keyring "${RECOVERY_KEY}"
+			;;
+	esac
+}
+
 verify()
 {
 	info "Verifying signature of '${1}'"

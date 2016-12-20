@@ -37,7 +37,7 @@ is_writable_blockdev "${FLASH_DEVICE}" || is_writable_chardev "${FLASH_DEVICE}" 
 ! is_empty "${FILENAME}" || abort "No tarball filename given"
 
 create_workspace
-create_keyring "${RECOVERY_KEY}"
+create_keyring_for_uri "${FILENAME}"
 
 mount_cache
 case "${FILENAME}" in
