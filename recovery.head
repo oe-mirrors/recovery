@@ -3,4 +3,22 @@
 # Copyright (C) 2016 Dream Property GmbH
 #
 
+set -e
+
+abort()
+{
+	echo "Fatal: $@"
+	exit 1
+}
+
+cleanup()
+{
+	[ -z "${WORKSPACE}" ] || rm -rf "${WORKSPACE}"
+}
+
+umask 077
+WORKSPACE=`mktemp -d -p /root` || abort 'Failed to create working directory'
+trap cleanup EXIT INT
+cd "${WORKSPACE}" || abort 'Failed to change working directory'
+
 (base64 -d | tar -xz) <<EOF
