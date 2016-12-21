@@ -20,7 +20,12 @@ exec 5>&1
 
 librecovery_init()
 {
-	read MID </proc/stb/info/mid
+	if [ -f /proc/stb/info/mid ]; then
+		read MID </proc/stb/info/mid
+	else
+		warn "Could not read MID!"
+		mark_legacy_version
+	fi
 
 	eval `tpm-ca 2>/dev/null | grep '^CA_[A-Z]\+=[A-Z0-9:_-]\+$'`
 	if [ -z "$CA_MID" ]; then
@@ -34,40 +39,24 @@ librecovery_init()
 	case "$MID" in
 		19)
 			MACHINE="dm7080"
-			RECOVERY_KEY="
-				mQENBFPo2oUBCAC6dzqe5azBCkxzj99xNfzwB4L6tHzz83zqD2KUQuuJMhO7Q2g9AHnSNQ0z1+Bz
-				oX2gGX90FusBSLiCuZmNdnxlcl7KVfBe37EpYtQNGCZKlWeruCAUdJGKIyPJXDvkXCy3dj6z1ho8
-				p1r3uazEbUbJyLvwjzcg0Ua1qxFjLoq/h15yDgd0NCkMStL6gwKdmReLRfE/tn0K53CVQzIeEFyn
-				EW3N0tu2deiYkanHy/MM9IOIv3oQmoEWNaVsDf+gG7nUPj0QE66GOYlBugR5vNi3BorOctarQp/8
-				Dh56muiqomwwewJubzsvjUjpiYXdO/3RN2gOej2+5hUCiYmvOahfABEBAAG0LkRyZWFtYm94IERN
-				NzA4MCBSZWNvdmVyeSA8cmVjb3ZlcnlAZG03MDgwLmNvbT6JATgEEwECACIFAlPo2oUCGwMGCwkI
-				BwMCBhUIAgkKCwQWAgMBAh4BAheAAAoJEBWob67Wz1bnUGYH/0zmTS7Gtvv97oHHnz3JSkLybDRj
-				Jx/wH+vpzyCRl8rC7TlHs5GBfjoJ1Hjo4DsZqElTb8g+kg5WGzMBUUuwabRhZuf2CL7/IPKP+LWH
-				t2ByZX3OgS1Q+HDLob5wlKllD9y/wwekuwS/8cgdnDH9URHCBqIt5gWQzLU1pvmQrKPXM1aMsLQj
-				16vbktXNkREF/cNhWfQFQs2dOwmzNEDeuE32I6h7PYl1bFP0hCOmbkcTuibnC+tsWOJMKF1iZ8bq
-				xDND9BYTwGtD2SVrddu3i4kBz6hka01ZnfSUZewpu+TrCgaD6oENfarPiC9VYfKEFi10RIPIxwRX
-				s1tBOOQNKpywAgAD
-			"
 			;;
 		20)
 			MACHINE="dm820"
-			RECOVERY_KEY="
-				mQENBFQ5xy0BCADyK6WY3xcKICfVFSbQQ+GXYK9k54bXJ4d2jNaSfk4yAU/YNo2d2ZNTvsN2fQTV
-				2hwQb1yamJ9MDfqS46qio2rxTBpCNjWwn08ANrn5O52VVy/72xceuUl1XW+Hf0ANF2jtgLTzNpIT
-				7uQBXxww7/3WSeoK6EP2xb7cbn5PHxtfv/b71wdq3nUYZWOzHOA4mfaRMZ61n37BkADiA8QJKKNN
-				6xm4gDMTrAZF1QRC5xtVZ0xHgPRxjD2So3+s5Jf+BL+W5OfOeI8/S3VdHDmvLi30D6D3jAGQKYtu
-				gnf6UaBBczoN5otwmeIOdHpxK4hSk8AY0C+umJdaDt6szELgGTq/ABEBAAG0LERyZWFtYm94IERN
-				ODIwIFJlY292ZXJ5IDxyZWNvdmVyeUBkbTgyMC5jb20+iQE4BBMBAgAiBQJUOcctAhsDBgsJCAcD
-				AgYVCAIJCgsEFgIDAQIeAQIXgAAKCRAmJQHXeeLAz2QdCACCxIcajDZ/Zl9V+jAubsCqPlh8Ep+v
-				ECizcjF7YiG9br3HGZCD8SdKQGAYQmMLLlo10Jj91/v6OhqDtpTSU2LyebjJZ0JE5xiWjmA+4bPs
-				tgOe+TmaNlQdT47V9whXx2+hKBYMpKtfv9TYhDoxBrQvaCguyVYDcqGyzslzjZonDeVIQQtLQjpR
-				Bi/eLrrmV+0CiPZowfceX9SJEknomc/TrYDRgoZRoIhZh6WG/68h+kzHN9MYDLwxM9vgxifQ5/xe
-				anMfDItZGZ+rtPKLq/yW6glOw//ctmngLwLO/wuyG7/yeJ98sj7bmO2SP52MvKmj6F8dag+m2V8/
-				4n4KYl7KsAIAAw==
-			"
 			;;
 		21)
 			MACHINE="dm520"
+			;;
+		22)
+			MACHINE="dm900"
+			;;
+		*)
+			[ -f /proc/stb/info/model ] || abort "Unsupported machine!"
+			read MACHINE </proc/stb/info/model
+			;;
+	esac
+
+	case "$MACHINE" in
+		dm520)
 			RECOVERY_KEY="
 				mQENBFcLsf0BCADDo4SxnQwl16cWSYnTwwp+E6ZvdhY3x9yw7b//MUDELtKkEp7wZ+AtHDYd+jzJ
 				Syc+n1m4MkArNUzCdseFJJAYEsNEjZ6ZkoMSQ/GZsIKi2IYT0LXN+9c2ZLLZstNZ2201KwqjFkpE
@@ -83,8 +72,23 @@ librecovery_init()
 				Gnvzh5YpHKnihOS+J7c=
 			"
 			;;
-		22)
-			MACHINE="dm900"
+		dm820)
+			RECOVERY_KEY="
+				mQENBFQ5xy0BCADyK6WY3xcKICfVFSbQQ+GXYK9k54bXJ4d2jNaSfk4yAU/YNo2d2ZNTvsN2fQTV
+				2hwQb1yamJ9MDfqS46qio2rxTBpCNjWwn08ANrn5O52VVy/72xceuUl1XW+Hf0ANF2jtgLTzNpIT
+				7uQBXxww7/3WSeoK6EP2xb7cbn5PHxtfv/b71wdq3nUYZWOzHOA4mfaRMZ61n37BkADiA8QJKKNN
+				6xm4gDMTrAZF1QRC5xtVZ0xHgPRxjD2So3+s5Jf+BL+W5OfOeI8/S3VdHDmvLi30D6D3jAGQKYtu
+				gnf6UaBBczoN5otwmeIOdHpxK4hSk8AY0C+umJdaDt6szELgGTq/ABEBAAG0LERyZWFtYm94IERN
+				ODIwIFJlY292ZXJ5IDxyZWNvdmVyeUBkbTgyMC5jb20+iQE4BBMBAgAiBQJUOcctAhsDBgsJCAcD
+				AgYVCAIJCgsEFgIDAQIeAQIXgAAKCRAmJQHXeeLAz2QdCACCxIcajDZ/Zl9V+jAubsCqPlh8Ep+v
+				ECizcjF7YiG9br3HGZCD8SdKQGAYQmMLLlo10Jj91/v6OhqDtpTSU2LyebjJZ0JE5xiWjmA+4bPs
+				tgOe+TmaNlQdT47V9whXx2+hKBYMpKtfv9TYhDoxBrQvaCguyVYDcqGyzslzjZonDeVIQQtLQjpR
+				Bi/eLrrmV+0CiPZowfceX9SJEknomc/TrYDRgoZRoIhZh6WG/68h+kzHN9MYDLwxM9vgxifQ5/xe
+				anMfDItZGZ+rtPKLq/yW6glOw//ctmngLwLO/wuyG7/yeJ98sj7bmO2SP52MvKmj6F8dag+m2V8/
+				4n4KYl7KsAIAAw==
+			"
+			;;
+		dm900)
 			RECOVERY_KEY="
 				mQENBFfS0TQBCADLP/mDLWiIF/dJmVFVzQf9CJ7jtb5ilVf4SOasXkPEbdtDsvIIE8ShAHPUgmYC
 				YGAl5FJNxaPZMhyylC9BZOLeYdUgJVRJXjY2WX/bE/6/J5z9UWj+XPzbnbxC+ZnzOGwyUAiHtwbF
@@ -122,6 +126,22 @@ librecovery_init()
 				qCtHm0s91wOwsYifEDyNLg39QW801YXKup7Gj7E0u8p1c9Ey+Gifio/YrAB4YaJuP0uaM2Mt6OJp
 				kl9JWN12d5M7linrcbpm2/WpzKzSfw5LEtzZSeEO0CaYRwhoYKxUsaMZwMFGtuUDw34RbHDqfpok
 				s3F9cSJ97g==
+			"
+			;;
+		dm7080)
+			RECOVERY_KEY="
+				mQENBFPo2oUBCAC6dzqe5azBCkxzj99xNfzwB4L6tHzz83zqD2KUQuuJMhO7Q2g9AHnSNQ0z1+Bz
+				oX2gGX90FusBSLiCuZmNdnxlcl7KVfBe37EpYtQNGCZKlWeruCAUdJGKIyPJXDvkXCy3dj6z1ho8
+				p1r3uazEbUbJyLvwjzcg0Ua1qxFjLoq/h15yDgd0NCkMStL6gwKdmReLRfE/tn0K53CVQzIeEFyn
+				EW3N0tu2deiYkanHy/MM9IOIv3oQmoEWNaVsDf+gG7nUPj0QE66GOYlBugR5vNi3BorOctarQp/8
+				Dh56muiqomwwewJubzsvjUjpiYXdO/3RN2gOej2+5hUCiYmvOahfABEBAAG0LkRyZWFtYm94IERN
+				NzA4MCBSZWNvdmVyeSA8cmVjb3ZlcnlAZG03MDgwLmNvbT6JATgEEwECACIFAlPo2oUCGwMGCwkI
+				BwMCBhUIAgkKCwQWAgMBAh4BAheAAAoJEBWob67Wz1bnUGYH/0zmTS7Gtvv97oHHnz3JSkLybDRj
+				Jx/wH+vpzyCRl8rC7TlHs5GBfjoJ1Hjo4DsZqElTb8g+kg5WGzMBUUuwabRhZuf2CL7/IPKP+LWH
+				t2ByZX3OgS1Q+HDLob5wlKllD9y/wwekuwS/8cgdnDH9URHCBqIt5gWQzLU1pvmQrKPXM1aMsLQj
+				16vbktXNkREF/cNhWfQFQs2dOwmzNEDeuE32I6h7PYl1bFP0hCOmbkcTuibnC+tsWOJMKF1iZ8bq
+				xDND9BYTwGtD2SVrddu3i4kBz6hka01ZnfSUZewpu+TrCgaD6oENfarPiC9VYfKEFi10RIPIxwRX
+				s1tBOOQNKpywAgAD
 			"
 			;;
 		*)
