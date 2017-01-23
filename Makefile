@@ -30,4 +30,6 @@ clean:
 install: $(TARGETS)
 	install -d $(DESTDIR)$(sbindir)
 	install -m 755 $(SCRIPTS) $(TARGETS) $(DESTDIR)$(sbindir)
+	install -d $(DESTDIR)/etc/recovery/backup-hooks.d
+	install -m 755 backup-hooks.d/*.sh $(DESTDIR)/etc/recovery/backup-hooks.d
 	ln -nsf writespi $(DESTDIR)$(sbindir)/readspi
