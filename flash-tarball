@@ -40,21 +40,26 @@ assert_rescue_mode
 is_writable_blockdev "${FLASH_DEVICE}" || is_writable_chardev "${FLASH_DEVICE}" || abort "Target device '${FLASH_DEVICE}' is not writable"
 ! is_empty "${FILENAME}" || abort "No tarball filename given"
 
-create_workspace
-create_keyring_for_uri "${FILENAME}"
-
-mount_cache
 case "${FILENAME}" in
 	*://*)
-		BASE_URI="$(dirname ${FILENAME})"
-		FILENAME="$(basename ${FILENAME})"
-		fetch_signed "${BASE_URI}" "${FILENAME}"
+		BASE_URI="$(dirname "${FILENAME}")"
+		FILENAME="$(basename "${FILENAME}")"
 		;;
 	*)
-		FILENAME=`xrealpath ${FILENAME}`
+		BASE_URI=""
+		FILENAME=$(xrealpath "${FILENAME}")
 		is_readable_file "${FILENAME}" || abort "Cannot access '${FILENAME}'"
 		;;
 esac
+
+create_workspace
+
+mount_cache
+
+if [ -n "${BASE_URI}" ]; then
+	create_keyring_for_uri "${BASE_URI}/${FILENAME}"
+	fetch_signed "${BASE_URI}" "${FILENAME}"
+fi
 
 if [ -n "${UBI_DEVICE}" ] && ! is_chardev "${UBI_DEVICE}" && ! attach_ubi_device "${FLASH_DEVICE}"; then
 	erase "${FLASH_DEVICE}" || abort "Failed to erase ${FLASH_DEVICE}"
