@@ -1,0 +1,40 @@
+#!/bin/sh
+#
+# Copyright (C) 2017 Dream Property GmbH, Germany
+#                    https://dreambox.de/
+#
+### BEGIN INIT INFO
+# Provides:          autoflashd
+# Required-Start:    $local_fs udev recovery_ui
+# Required-Stop:     $local_fs udev recovery_ui
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Start autoflashd at boot time
+# Description:       Enable service provided by autoflashd.
+### END INIT INFO
+
+test -x @sbindir@/autoflashd || exit 0
+
+case "$1" in
+  start)
+    echo -n "Starting autoflashd"
+    start-stop-daemon -q -p @runstatedir@/autoflashd.pid -x @sbindir@/autoflashd -S -b -m
+    echo "."
+    ;;
+  stop)
+    echo -n "Stopping autoflashd"
+    start-stop-daemon -q -p @runstatedir@/autoflashd.pid -x @sbindir@/autoflashd -K
+    echo "."
+    ;;
+  restart|reload|force-reload)
+    $0 stop
+    sleep 1
+    $0 start
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|restart|reload|force-reload}"
+    exit 1
+    ;;
+esac
+
+exit 0

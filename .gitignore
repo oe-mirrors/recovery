@@ -1,5 +1,7 @@
 *.o
 *.swp
+autoflashd
+autoflashd.init
 recovery
 to-the-rescue
 writespi
