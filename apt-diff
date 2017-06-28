@@ -1,0 +1,65 @@
+#!/bin/sh
+#
+# Copyright (C) 2017 Dream Property GmbH, Germany
+#                    https://dreambox.de/
+#
+
+. librecovery
+
+PACKAGE_LIST="/etc/enigma2/packages.bak"
+
+usage()
+{
+	echo "Usage: ${0} [-hiqtv]"
+
+	cat << EOF
+Compare the current list of installed packages with the point in time when the
+last restored settings backup was created.
+
+It lists packages which are no longer installed, one per line. Differing versions
+get ignored.
+
+When invoked with -i, an attempt is made to install these packages, if available.
+EOF
+
+	exit "${1}"
+}
+
+INSTALL_ENABLE=0
+INSTALL_PKGS=
+while getopts hiqtv opt; do
+	case "${opt}" in
+		i)
+			INSTALL_ENABLE=1
+			;;
+	esac
+	std_opt "${opt}"
+done
+
+if [ ! -f "${PACKAGE_LIST}" ]; then
+	echo "No list of packages found in ${PACKAGE_LIST}." >&2
+	exit 1
+fi
+
+pkglist() {
+	(cd "/var/lib/dpkg/info" && ls -1 ./*.list) | sed -e 's,^\./\(.*\)\.list$,\1,' | diff -u - ${PACKAGE_LIST} | sed -ne 's,^+\([^+]\),\1,p'
+}
+
+OLDIFS=$IFS
+IFS='
+'
+set -- $(pkglist)
+for pkg; do
+	if [ "$INSTALL_ENABLE" -eq 1 ]; then
+		if apt-cache show "$pkg" >/dev/null 2>&1; then
+			INSTALL_PKGS="$INSTALL_PKGS $pkg"
+		fi
+	else
+		echo "$pkg"
+	fi
+done
+IFS=$OLDIFS
+
+if [ -n "$INSTALL_PKGS" ]; then
+	apt-get install $INSTALL_PKGS && apt-get clean
+fi
