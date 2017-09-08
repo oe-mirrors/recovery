@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2016 Dream Property GmbH
+# Copyright (C) 2017 Dream Property GmbH
 #
 
 ROOT_MOUNTPOINT=/mnt
@@ -410,6 +410,7 @@ create_ubi_volume()
 create_partition_table()
 {
 	info "Creating partition table"
+	[ -n "${SGDISK_ARGS}" ] || abort "Can't create partition without SGDISK_ARGS."
 	if hash sgdisk 2>/dev/null; then
 		xtrap sgdisk -z ${SGDISK_ARGS} "${1}"
 	else
