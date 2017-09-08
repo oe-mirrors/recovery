@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (C) 2016 Dream Property GmbH
+# Copyright (C) 2017 Dream Property GmbH
 #
 
 source librecovery
@@ -18,5 +18,9 @@ FILENAME=`xrealpath ${1}`
 
 ! is_empty "${FILENAME}" || abort "No rescue image given"
 is_readable_file "${FILENAME}" || abort "Cannot access '${FILENAME}'"
-writespi ${FILENAME} kernel || abort "Failed to write rescue image"
+if [ -n "${RESCUE_PARTITION}" ]; then
+	write_blkdev "${FILENAME}" "${RESCUE_PARTITION}"
+else
+	writespi "${FILENAME}" kernel || abort "Failed to write rescue image"
+fi
 rm -f /etc/.rescue-update-suggested
