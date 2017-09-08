@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (C) 2016 Dream Property GmbH
+# Copyright (C) 2017 Dream Property GmbH
 #
 
 source librecovery
@@ -129,7 +129,7 @@ case "${MACHINE}" in
 		write_blob bootblob.bin "${DEVICE}" "${OPTION}" || abort "Failed to flash boot image"
 		select_boot_source "${DEVICE}" "${OPTION}" || abort "Failed to enable boot source"
 		;;
-	dm900)
+	dm900|dm920)
 		write_blkdev "${VMLINUX}" "${DEVICE}" || abort "Failed to flash kernel image"
 		;;
 esac
