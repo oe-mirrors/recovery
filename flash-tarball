@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (C) 2016 Dream Property GmbH
+# Copyright (C) 2017 Dream Property GmbH
 #
 
 source librecovery
@@ -37,7 +37,8 @@ FILENAME="${1}"
 
 assert_rescue_mode
 
-is_writable_blockdev "${FLASH_DEVICE}" || is_writable_chardev "${FLASH_DEVICE}" || abort "Target device '${FLASH_DEVICE}' is not writable"
+DEVICE=${ROOT_PARTITION:-${FLASH_DEVICE}}
+is_writable_blockdev "${DEVICE}" || is_writable_chardev "${DEVICE}" || abort "Target device '${DEVICE}' is not writable"
 ! is_empty "${FILENAME}" || abort "No tarball filename given"
 
 case "${FILENAME}" in
