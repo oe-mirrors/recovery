@@ -49,6 +49,9 @@ librecovery_init()
 		22)
 			MACHINE="dm900"
 			;;
+		23)
+			MACHINE="dm920"
+			;;
 		*)
 			[ -f /proc/stb/info/model ] || abort "Unsupported machine!"
 			read MACHINE </proc/stb/info/model
@@ -128,6 +131,32 @@ librecovery_init()
 				s3F9cSJ97g==
 			"
 			;;
+		dm920)
+			RECOVERY_KEY="
+				mQENBFmygj0BCADUI6wYunFIwnFoLVY1k3h+NiaW3GumWcts3Rx8OX1J9v/zsSi55xeLZOKEz1Jt
+				pFGY8EOShk4VmcGOtrxwjHfURyEfUZGWR8SqGD0OoxgJdYJImGVp32MdhkZTETzJodIs7n7/9mPz
+				ah/QWlYiFL0ExEPVMPRhopmJEFQ4IQTDKPhyERbZjta2Xtp89sErKXKkbtG3Qb9tRGN5l5XKXbCG
+				3qaIl0+X5h8mg5neS5d0a9IwLeD2LUElOKsnbnoQWUVmNlDCQSQwnYGj38CA/IxzKQItKJtYr5a3
+				zDqbkEDpdAja0BW8kApngToNIJaf/Vi5Vk3YJN29lLa4ISJEYjzNABEBAAG0NERyZWFtYm94IERN
+				OTIwIFJlY292ZXJ5IDxkbTkyMEByZWNvdmVyeS5kcmVhbWJveC5kZT6JATcEEwEIACEFAlmygj0C
+				GwMFCwkIBwIGFQgJCgsCBBYCAwECHgECF4AACgkQQEJVMbPFsaPONAf/RAGd45cXIfJBKtXsILzt
+				HFql0wGZo5XhnAegYEOVShmKFhdHQJeOdW628TAIKJXeX0Po8pVtIDIpFf42ebmp3MdJMjk2XvZX
+				MFwoXcw2RerRZ+MMbuAe+vm1vjXfpgBG6guT8c9bT6Z1D7npaSK2eW4AkeVgpQtaYWxVkvaelNuH
+				oW3Xc6pcbhil4YITQA7qNHZMmieTWutG0+CPhw1DlexFSyCjixr0kD500O64cHOIKOXs1Xj6h/IC
+				qCPkncI1ZQizyGBUKqWc1RSm/f7VA2+Pa3cUVDO99+LGBjt1yfxPP+9Un9kte7Tlt5BJzUIxwEkn
+				yJqNWy6snJD7buu2w7kBDQRZsoI9AQgAsnbCKWrXrlwvmw/zpXS8FnxDiNrc669X0xQzBRdQs6b6
+				Nj32FnoEoechsuOlwyCZtHXoIZSAtkdJ4yMJlouMXSnD1xhxiEBQ6v3qlEdL3ASxlEWzzTtgKePZ
+				/GS+KyfAAsDzNlTe2uZEsVa/6yH82A919kD6FeuDVqT0WtfyzidJkkERKhdG+AZe8fA6SIbkuoo3
+				/lw8QFvfIlbOg4XYlox8WyMetjqFbT+n8wlf0auijuLUsueMeknX+dDsoKeK5DGso1A85EyBfeML
+				szNOMUtzhpGG8WQL9kjYBoymKJaSh7nhuwop8hupJD6tHyBuvi/deNF+YvYE40WmleJtVwARAQAB
+				iQEfBBgBCAAJBQJZsoI9AhsMAAoJEEBCVTGzxbGj40YIALJfWEQ0UrkNoKWtjE7LXhmxlgaESb22
+				FgymbixwQN/qxiP0JAxO6XZJOArT1+L79RKHDgGKb8hJjD6iYPwr479CWFjsDKsofB3ceK8lCU2L
+				FFMlB8i0K2d0EB33R1Xcrkc8FcqUZhjoEX8x1jnGDBbD0g5S4qilHCOKrANmaqd+KnBAE1M24Yts
+				S9/eP6lf65pWyFmN4du0jCGxSHGocTJ3B60xcRSVlsqdcqE+rqR2xya5ugbW9r5/nU37wWaTj0lz
+				mkS+EykH2gxlNxcCIRkhQkuCptJa9ooqSRX0lVxuvLxJHQ6E/lpgK4Tm1Cs1SdGk4tYfG03c3xpA
+				MfI1m4s=
+			"
+			;;
 		dm7080)
 			RECOVERY_KEY="
 				mQENBFPo2oUBCAC6dzqe5azBCkxzj99xNfzwB4L6tHzz83zqD2KUQuuJMhO7Q2g9AHnSNQ0z1+Bz
@@ -157,7 +186,7 @@ librecovery_init()
 			UBI_VOL_ID="0"
 			FILESYSTEM="ubifs"
 			;;
-		dm820|dm900|dm7080)
+		dm820|dm900|dm920|dm7080)
 			FLASH_DEVICE="/dev/mmcblk0"
 			FILESYSTEM="ext4"
 			;;
@@ -181,7 +210,7 @@ librecovery_init()
 			PARTED_ARGS="mkpart primary ext2 72MiB 1024MiB
 			             mkpart primary ext2 1024MiB 100%"
 			;;
-		dm900)
+		dm900|dm920)
 			KERNEL_PARTITION="/dev/mmcblk0p1"
 			ROOT_PARTITION="/dev/mmcblk0p2"
 			DATA_PARTITION="/dev/mmcblk0p3"
@@ -200,7 +229,7 @@ librecovery_init()
 			FSBL_SIZE=$((1024 * 1024))
 			POSTINSTS="dreambox-secondstage kernel-image"
 			;;
-		dm900)
+		dm900|dm920)
 			FSBL_SIZE=$((3 * 512 * 1024))
 			POSTINSTS="kernel-image"
 			;;
