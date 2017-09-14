@@ -865,17 +865,18 @@ xrealpath()
 	realpath ${opt} "${1}"
 }
 
+xtar_args()
+{
+	for arg; do
+		if ! tar "$arg" --help 2>&1 | grep -q "^tar: unrecognized option '$arg'$"; then
+			echo "$arg"
+		fi
+	done
+}
+
 xtar()
 {
-	local opt
-
-	if tar --usage >/dev/null 2>&1; then
-		opt="--warning=no-timestamp"
-	else
-		opt=""
-	fi
-
-	xtrap tar --numeric-owner ${opt} $@
+	xtrap tar $(xtar_args --numeric-owner --warning=no-timestamp) $@
 }
 
 xtrap()
