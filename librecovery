@@ -205,10 +205,10 @@ librecovery_init()
 			DATA_PARTITION="/dev/mmcblk0p2"
 			KERNEL_SIZE=$((32 * 1024 * 1024))
 			SSBL_SIZE=$((4 * 1024 * 1024))
-			SGDISK_ARGS="-n 1:147456:2097151 -c 1:rootfs -t 1:8307
-                                     -n 2:2097152: -c 2:data -t 2:8300"
-			PARTED_ARGS="mkpart primary ext2 72MiB 1024MiB
-			             mkpart primary ext2 1024MiB 100%"
+			SGDISK_ARGS="-n 1:147456:4194303 -c 1:rootfs -t 1:8307
+			             -n 2:4194304: -c 2:data -t 2:8300"
+			PARTED_ARGS="mkpart primary ext2 72MiB 2048MiB
+			             mkpart primary ext2 2048MiB 100%"
 			;;
 		dm900|dm920)
 			KERNEL_PARTITION="/dev/mmcblk0p1"
@@ -216,11 +216,11 @@ librecovery_init()
 			DATA_PARTITION="/dev/mmcblk0p3"
 			KERNEL_SIZE=$((31 * 1024 * 1024))
 			SGDISK_ARGS="-n 1:2048:65535 -c 1:kernel -t 1:8301
-                                     -n 2:65536:2097151 -c 2:rootfs -t 2:8307
-                                     -n 3:2097152: -c 3:data -t 3:8300"
+			             -n 2:65536:4194303 -c 2:rootfs -t 2:8307
+			             -n 3:4194304: -c 3:data -t 3:8300"
 			PARTED_ARGS="mkpart primary ext2 1MiB 32MiB
-			             mkpart primary ext2 32MiB 1024MiB
-			             mkpart primary ext2 1024MiB 100%"
+			             mkpart primary ext2 32MiB 2048MiB
+			             mkpart primary ext2 2048MiB 100%"
 			;;
 	esac
 
