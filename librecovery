@@ -441,7 +441,8 @@ create_partition_table()
 	info "Creating partition table"
 	[ -n "${SGDISK_ARGS}" ] || abort "Can't create partition without SGDISK_ARGS."
 	if hash sgdisk 2>/dev/null; then
-		xtrap sgdisk -z ${SGDISK_ARGS} "${1}"
+		xtrap sgdisk -Z "${1}" || true
+		xtrap sgdisk ${SGDISK_ARGS} "${1}"
 	else
 		mark_legacy_version
 		xtrap parted --script --align=optimal "${1}" -- mklabel gpt ${PARTED_ARGS}
