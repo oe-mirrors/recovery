@@ -37,7 +37,7 @@ FILENAME="${1}"
 
 assert_rescue_mode
 
-DEVICE=${ROOT_PARTITION:-${FLASH_DEVICE}}
+DEVICE=${FLASH_DEVICE:-${ROOT_PARTITION}}
 is_writable_blockdev "${DEVICE}" || is_writable_chardev "${DEVICE}" || abort "Target device '${DEVICE}' is not writable"
 ! is_empty "${FILENAME}" || abort "No tarball filename given"
 
