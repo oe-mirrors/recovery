@@ -22,14 +22,15 @@ SCRIPTS := apt-diff backup-settings backup-tarball \
            flash-rescue flash-ssbl flash-tarball help librecovery \
            restore-settings run-recovery select-boot-source update-rescue
 TARGETS := autoflashd recovery to-the-rescue writespi
-INITSCRIPT := autoflashd.init
+INITSCRIPTS := init.d/autoflashd init.d/fbscaled
 
-default: $(TARGETS) $(INITSCRIPT)
+default: $(TARGETS) $(INITSCRIPTS)
 
 autoflashd: autoflashd.o
 	$(LINK.c) $^ $(LOADLIBES) $(LDLIBS) $($(@)_LIBS) -o $@
 
-autoflashd.init: autoflashd.init.in Makefile
+init.d/%: %.init.in Makefile
+	mkdir -p $(@D)
 	sed -e 's,@sbindir@,$(sbindir),g' \
 	    -e 's,@runstatedir@,$(runstatedir),g' \
 	    < $< > $@
@@ -45,11 +46,11 @@ to-the-rescue: io.o
 writespi: io.o
 
 clean:
-	$(RM) $(wildcard $(TARGETS) $(INITSCRIPT) *.o)
+	$(RM) $(wildcard $(TARGETS) $(INITSCRIPTS) *.o)
 
-install: $(TARGETS)
+install: $(TARGETS) $(INITSCRIPTS)
 	install -d $(DESTDIR)$(sysconfdir)/init.d
-	install -m 755 $(INITSCRIPT) $(DESTDIR)$(sysconfdir)/init.d/autoflashd
+	install -m 755 $(INITSCRIPTS) $(DESTDIR)$(sysconfdir)/init.d
 	install -d $(DESTDIR)$(sbindir)
 	install -m 755 $(SCRIPTS) $(TARGETS) $(DESTDIR)$(sbindir)
 	install -d $(DESTDIR)$(sysconfdir)/recovery/backup-hooks.d
