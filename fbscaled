@@ -1,0 +1,54 @@
+#!/bin/sh
+#
+# Copyright (C) 2019 Dream Property GmbH
+#
+
+source librecovery
+
+compatible one
+
+display="/sys/class/display"
+fb="/sys/class/graphics/fb0"
+hdmi="/sys/class/extcon/hdmi/device"
+force_preferred_mode=0
+
+while getopts hpqtv opt; do
+	case "${opt}" in
+		p)
+			force_preferred_mode=1
+			;;
+	esac
+	std_opt "${opt}"
+done
+
+assert_rescue_mode
+
+while true; do
+	fb_update=0
+
+	cur_mode=$(cat $display/mode)
+	if [ "$cur_mode" = "invalid" -o $force_preferred_mode -eq 1 ]; then
+		new_mode=$(grep '*$' $hdmi/disp_cap | sed -e 's,\*$,,')
+		if [ "$new_mode" != "$cur_mode" ]; then
+			echo $new_mode >$display/mode
+		fi
+	fi
+
+	free_scale_axis=$(fbset | grep -w geometry | awk '{print 0, 0, $2 - 1, $3 - 1}')
+	if [ "$free_scale_axis" != "$(cat $fb/free_scale_axis)" ]; then
+		echo $free_scale_axis >$fb/free_scale_axis
+		fb_update=1
+	fi
+
+	window_axis=$(grep -w -e width: -e height: $display/vinfo | awk '{print $2}' | xargs echo | awk '{print 0, 0, $1 - 1, $2 - 1}')
+	if [ "$window_axis" != "$(cat $fb/window_axis)" ]; then
+		echo $window_axis >$fb/window_axis
+		fb_update=1
+	fi
+
+	if [ $fb_update -eq 1 ]; then
+		echo 65537 >$fb/free_scale
+	fi
+
+	sleep 12
+done

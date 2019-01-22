@@ -1,6 +1,6 @@
 #!/usr/bin/make -f
 #
-# Copyright (C) 2017 Dream Property GmbH, Germany
+# Copyright (C) 2019 Dream Property GmbH, Germany
 #                    https://dreambox.de/
 #
 
@@ -17,7 +17,8 @@ autoflashd_LIBS := $(shell pkg-config --libs libudev)
 override CFLAGS := $(CFLAGS) $(autoflashd_CFLAGS) -Wall -std=c99
 override CPPFLAGS := $(CPPFLAGS) -DNDEBUG
 
-SCRIPTS := apt-diff backup-settings backup-tarball flash-fsbl flash-kernel \
+SCRIPTS := apt-diff backup-settings backup-tarball \
+           fbscaled flash-fsbl flash-kernel \
            flash-rescue flash-ssbl flash-tarball help librecovery \
            restore-settings run-recovery select-boot-source update-rescue
 TARGETS := autoflashd recovery to-the-rescue writespi
