@@ -331,6 +331,11 @@ is_mountpoint()
 	is_directory "${1}" && mountpoint -q `realpath "${1}"`
 }
 
+is_empty_or_mountpoint()
+{
+	is_empty "${1}" || is_mountpoint "${1}"
+}
+
 is_mounted()
 {
 	if is_blockdev "${1}"; then
@@ -694,13 +699,15 @@ mount_cache()
 
 cache_changed()
 {
-	is_mountpoint "${DATA_MOUNTPOINT}" && ! cmp -s "${RECOVERY_CACHE}/${1}.sig" "${1}.sig"
+	is_empty_or_mountpoint "${DATA_MOUNTPOINT}" && ! cmp -s "${RECOVERY_CACHE}/${1}.sig" "${1}.sig"
 }
 
 remount_cache_rw()
 {
-	is_mountpoint "${DATA_MOUNTPOINT}" && info "Remounting '${DATA_MOUNTPOINT}' (rw)" && \
-		mount -o remount,rw "${DATA_MOUNTPOINT}" && is_writable "${DATA_MOUNTPOINT}"
+	is_empty "${DATA_MOUNTPOINT}" || {
+		is_mountpoint "${DATA_MOUNTPOINT}" && info "Remounting '${DATA_MOUNTPOINT}' (rw)" && \
+			mount -o remount,rw "${DATA_MOUNTPOINT}" && is_writable "${DATA_MOUNTPOINT}"
+	}
 }
 
 update_cache()
