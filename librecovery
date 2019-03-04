@@ -537,7 +537,7 @@ fetch()
 create_keyring()
 {
 	export GNUPGHOME="${WORKSPACE}"
-	echo "${1}" | base64 -d > trustedkeys.gpg || abort 'Failed to write public key'
+	echo "${1}" | sed -e 's,\s\+,,g' -e '/^$/d' | base64 -d > trustedkeys.gpg || abort 'Failed to write public key'
 }
 
 create_keyring_for_uri()
