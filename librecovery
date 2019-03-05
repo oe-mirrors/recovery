@@ -699,7 +699,7 @@ mount_cache()
 
 cache_changed()
 {
-	is_empty_or_mountpoint "${DATA_MOUNTPOINT}" && ! cmp -s "${RECOVERY_CACHE}/${1}.sig" "${1}.sig"
+	is_empty_or_mountpoint "${DATA_MOUNTPOINT}" && ! cmp -s "${RECOVERY_CACHE}/${1}.sig" "${1}.sig" || ! verify "${RECOVERY_CACHE}/${1}" 4>/dev/null
 }
 
 remount_cache_rw()
