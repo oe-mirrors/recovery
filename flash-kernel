@@ -1,11 +1,17 @@
 #!/bin/sh
 #
-# Copyright (C) 2017 Dream Property GmbH
+# Copyright (C) 2019 Dream Property GmbH
 #
 
 source librecovery
 
 case "${MACHINE}" in
+	one)
+		DEVICETREE=/boot/dreamone.dtb
+		CMDLINE=
+		INITRD=
+		OPTSTRING="c:d:hi:qtv"
+		;;
 	dm820|dm7080)
 		MEM_SIZE=0x10000000
 		ARC_IMAGES=/usr/share/fastboot/lcd_anim.bin
@@ -44,6 +50,27 @@ create_blob()
 	mkbootblob ${ARGS} >&3 2>&4
 }
 
+create_bootimg()
+{
+	ARGS="--base 0 --kernel_offset 0x1080000 --second_offset 0x1000000 -o ${1}"
+
+	ARGS="${ARGS} --kernel ${VMLINUX}"
+	if is_readable_file "${DEVICETREE}"; then
+		ARGS="${ARGS} --second ${DEVICETREE}"
+	fi
+	if is_readable_file "${INITRD}"; then
+		ARGS="${ARGS} --ramdisk ${INITRD}"
+	fi
+	ARGS="${ARGS} --board ${MACHINE}"
+
+	info "Creating boot image"
+	if is_empty "${CMDLINE}"; then
+		mkbootimg ${ARGS} >&3 2>&4
+	else
+		mkbootimg ${ARGS} --cmdline "${CMDLINE}" >&3 2>&4
+	fi
+}
+
 write_blob()
 {
 	case "${3}" in
@@ -59,6 +86,10 @@ write_blob()
 usage()
 {
 	case "${MACHINE}" in
+		one)
+			echo "Usage: ${0} [-hqtv] [-c <cmdline>] [-d <devicetree>] [-i <initrd>] <vmlinux.bin>"
+			echo "       Default: -d ${DEVICETREE}"
+			;;
 		dm820|dm7080)
 			echo "Usage: ${0} [-hqtv] [-a <arc images>] [-c <cmdline>] [-i <initrd>] [-m <mem-size>] [-o A|B] <vmlinux.bin>"
 			echo "       Default: -a ${ARC_IMAGES} -m ${MEM_SIZE} -o ${OPTION}"
@@ -77,6 +108,9 @@ while getopts ${OPTSTRING} opt; do
 			;;
 		c)
 			CMDLINE="${OPTARG}"
+			;;
+		d)
+			DEVICETREE="${OPTARG}"
 			;;
 		i)
 			INITRD="${OPTARG}"
@@ -103,6 +137,12 @@ DEVICE=${KERNEL_PARTITION:-${FLASH_DEVICE}}
 is_writable_blockdev "${DEVICE}" || is_writable_chardev "${DEVICE}" || abort "Target device '${DEVICE}' is not writable"
 
 case "${MACHINE}" in
+	one)
+		create_workspace
+		create_bootimg bootblob.bin || abort "Failed to create boot image"
+		is_file_size_le bootblob.bin "${KERNEL_SIZE}" || abort "Boot image is too big"
+		write_blkdev bootblob.bin "${KERNEL_PARTITION}" || abort "Failed to flash boot image"
+		;;
 	dm520)
 		erase "${DEVICE}" || abort "Failed to erase ${DEVICE}"
 		write_nand "${DEVICE}" "${VMLINUX}" || abort "Failed to flash kernel image"
