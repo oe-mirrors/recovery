@@ -15,7 +15,7 @@ autoflashd_CFLAGS := $(shell pkg-config --cflags libudev)
 autoflashd_LIBS := $(shell pkg-config --libs libudev)
 
 override CFLAGS := $(CFLAGS) $(autoflashd_CFLAGS) -Wall -std=c99
-override CPPFLAGS := $(CPPFLAGS) -DNDEBUG
+override CPPFLAGS := $(CPPFLAGS) -D_DEFAULT_SOURCE -DNDEBUG
 
 SCRIPTS := apt-diff backup-settings backup-tarball \
            fbscaled flash-fsbl flash-kernel \

@@ -1,7 +1,7 @@
 /*
  * to-the-rescue.c
  *
- * Copyright (C) 2016 Dream Property GmbH, Germany
+ * Copyright (C) 2019 Dream Property GmbH, Germany
  *                    https://dreambox.de/
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -53,31 +53,39 @@ static bool aon(void)
 {
 	unsigned int chip_id;
 	unsigned long addr;
-	volatile long *array;
+	volatile int *array;
 	unsigned int index;
+	size_t size;
 
 	if (!detect_soc(&chip_id))
 		return false;
 
 	switch (chip_id) {
 	case 0x73625:
-		addr = AON_ARRAY_BCM73625;
+		addr = BCM_PHYSICAL_OFFSET + AON_ARRAY_BCM73625;
 		index = 120;
+		size = 0x1000;
 		break;
 	case 0x7439:
-		addr = AON_ARRAY_BCM7439;
+		addr = BCM_PHYSICAL_OFFSET + AON_ARRAY_BCM7439;
 		index = 244;
+		size = 0x1000;
+		break;
+	case 0x29400a02:
+		addr = 0xff6345e4;
+		index = 0;
+		size = 4;
 		break;
 	default:
 		return false;
 	}
 
-	array = ioremap(BCM_PHYSICAL_OFFSET + addr, 0x1000);
+	array = ioremap(addr, size);
 	if (array == NULL)
 		return false;
 
 	array[index] = 0x12E5C00E;
-	iounmap(array, 0x1000);
+	iounmap(array, size);
 	return true;
 }
 
