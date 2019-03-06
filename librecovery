@@ -275,7 +275,7 @@ librecovery_init()
 
 	case "$MACHINE" in
 		one)
-			POSTINSTS="kernel-image"
+			POSTINSTS="dreambox-bootlogo-u-boot kernel-image"
 			;;
 		dm520|dm820|dm7080)
 			FSBL_SIZE=$((1024 * 1024))
