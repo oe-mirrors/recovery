@@ -1,0 +1,31 @@
+#!/bin/sh
+#
+# Copyright (C) 2019 Dream Property GmbH
+#
+
+source librecovery
+
+compatible one
+
+xgetopts $@
+shift $((${OPTIND} - 1))
+[ "$#" -eq 0 ] || usage 1
+
+create_workspace
+
+case "$(uname -m)" in
+	aarch64)
+		arch=arm64
+		;;
+	*)
+		abort "Unsupported platform!"
+		;;
+esac
+
+LC_ALL=C grep -h ^[a-zA-Z0-9] /etc/u-boot.scr.d/*.scr >autoexec 2>/dev/null || true
+if [ -s autoexec ]; then
+	mkimage -A $arch -O linux -T script -C none -n autoexec -d autoexec /boot/autoexec.img.tmp
+	mv /boot/autoexec.img.tmp /boot/autoexec.img
+else
+	rm -f /boot/autoexec.img
+fi

@@ -20,7 +20,8 @@ override CPPFLAGS := $(CPPFLAGS) -DNDEBUG
 SCRIPTS := apt-diff backup-settings backup-tarball \
            fbscaled flash-fsbl flash-kernel \
            flash-rescue flash-ssbl flash-tarball help librecovery \
-           restore-settings run-recovery select-boot-source update-rescue
+           restore-settings run-recovery select-boot-source \
+           update-autoexec update-rescue
 TARGETS := autoflashd recovery to-the-rescue writespi
 INITSCRIPTS := init.d/autoflashd init.d/fbscaled
 
