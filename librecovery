@@ -588,7 +588,11 @@ extract_tarball()
 fetch()
 {
 	info "Downloading '${1}/${2}'"
-	wget -q "${1}/${2}" -O "${2}" >&3 2>&4
+	if hash curl 2>/dev/null; then
+		curl -q "${1}/${2}" -o "${2}" >&3 2>&4
+	else
+		wget -q "${1}/${2}" -O "${2}" >&3 2>&4
+	fi
 }
 
 create_keyring()
