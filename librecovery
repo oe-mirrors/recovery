@@ -669,7 +669,7 @@ create_keyring_for_uri()
 		*dreamboxupdate.com/opendreambox/2.5/*/${MACHINE}/*)
 			create_keyring "${KEY_KROGOTH}"
 			;;
-		*dreamboxupdate.com/opendreambox/2.6/*/${MACHINE}/*)
+		*dreamboxupdate.com/opendreambox/2.6/*/*/*)
 			create_keyring "${KEY_PYRO}"
 			;;
 		*)
