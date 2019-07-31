@@ -91,7 +91,7 @@ static bool aon(void)
 
 int main(void)
 {
-	char *argv[2];
+	char *argv[4];
 
 	if (!(proc() || aon())) {
 		printf("Sorry, manual intervention required! Please execute 'reboot' manually,\n"
@@ -99,6 +99,14 @@ int main(void)
 		       "Dreambox restarts, until the countdown on the front panel display has\n"
 		       "elapsed.\n");
 		return 1;
+	}
+
+	if (access("/bin/systemctl", X_OK) == 0) {
+		argv[0] = "systemctl";
+		argv[1] = "--no-block";
+		argv[2] = "reboot";
+		argv[3] = NULL;
+		return !!execve("/bin/systemctl", argv, NULL);
 	}
 
 	argv[0] = "reboot";
