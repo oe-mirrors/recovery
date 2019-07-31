@@ -139,7 +139,7 @@ bool detect_soc(unsigned int *pchip_id)
 			*pchip_id = chip_id;
 			return true;
 		}
-	} if (access("/sys/devices/platform/brcmstb", F_OK) == 0) {
+	} else if (access("/sys/devices/platform/brcmstb", F_OK) == 0) {
 		mem = ioremap(BCM_PHYSICAL_OFFSET + BCM_CHIP_FAMILY_ID, 4);
 		if (mem == NULL) {
 			fprintf(stderr, "Failed to map chip family register!\n");
