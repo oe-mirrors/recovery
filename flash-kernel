@@ -6,7 +6,7 @@
 source librecovery
 
 case "${MACHINE}" in
-	one)
+	one|two)
 		DEVICETREE=/boot/dreamone.dtb
 		CMDLINE=
 		INITRD=
@@ -86,7 +86,7 @@ write_blob()
 usage()
 {
 	case "${MACHINE}" in
-		one)
+		one|two)
 			echo "Usage: ${0} [-hqtv] [-c <cmdline>] [-d <devicetree>] [-i <initrd>] <vmlinux.bin>"
 			echo "       Default: -d ${DEVICETREE}"
 			;;
@@ -137,7 +137,7 @@ DEVICE=${KERNEL_PARTITION:-${FLASH_DEVICE}}
 is_writable_blockdev "${DEVICE}" || is_writable_chardev "${DEVICE}" || abort "Target device '${DEVICE}' is not writable"
 
 case "${MACHINE}" in
-	one)
+	one|two)
 		create_workspace
 		create_bootimg bootblob.bin || abort "Failed to create boot image"
 		is_file_size_le bootblob.bin "${KERNEL_SIZE}" || abort "Boot image is too big"
