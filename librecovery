@@ -57,6 +57,9 @@ librecovery_init()
 		24)
 			MACHINE="one"
 			;;
+		25)
+			MACHINE="two"
+			;;
 		*)
 			[ -f /proc/stb/info/model ] || abort "Unsupported machine!"
 			read MACHINE </proc/stb/info/model
@@ -97,6 +100,18 @@ librecovery_init()
 				ez9uxOutq4GwnYl3b2aOWNfgXsawsVicKJspraWbfCaBWI2Bqd1IY/8TvWAwQnZQufeOEgKpmn9Q
 				bm66BBY04fEfLFwTCNuLVhkQdX9hm8DtqHHOoi9ROXND/fMKH0C+xQqgFPz6TAVXXK6P5x5k4OhE
 				nwrEp6pVYVgJaWwrjjrPXLUxCF0Z5SvY6kQbY1Q/8F9fmWHMYISEl2QEYNFhCg==
+			"
+			;;
+		two)
+			RECOVERY_KEY="
+				mDMEXjg39BYJKwYBBAHaRw8BAQdAPDcDM+3IlbNMr6xDDSQKQi1GAcANi3tXo0UgppXDKz60MERy
+				ZWFtYm94IFR3byBSZWNvdmVyeSA8dHdvQHJlY292ZXJ5LmRyZWFtYm94LmRlPoiQBBMWCAA4FiEE
+				s51t5UgCNC6ib8sWw2DRqxVPUwwFAl44N/QCGwMFCwkIBwIGFQgJCgsCBBYCAwECHgECF4AACgkQ
+				w2DRqxVPUwzK1gD+KqCtHCP5W8rSVCwapmxt8bj6LKq8BFLQnVuM+KNKdIMA/1LDdRnHVxvlpkgZ
+				PZ+5r7RO7zGnW+GeZX4vLdYrAsgFuDgEXjg39BIKKwYBBAGXVQEFAQEHQJtoMmpzXB+zmjYDtxjH
+				IeWW8gpJZ7rJKbsAMgK8kcFcAwEIB4h4BBgWCAAgFiEEs51t5UgCNC6ib8sWw2DRqxVPUwwFAl44
+				N/QCGwwACgkQw2DRqxVPUww5xwEA5VKZFPtJvHJDgbVlq1JaoVwJlOEwSUqf98bdGF8xgyYBAOpb
+				xmIzYBiNvwwgAWvVc6Di8fkwhnP4mJlxsUoWMSsN
 			"
 			;;
 		dm520)
@@ -219,7 +234,7 @@ librecovery_init()
 	esac
 
 	case "$MACHINE" in
-		one)
+		one|two)
 			FILESYSTEM="ext4"
 			;;
 		dm520)
@@ -236,7 +251,7 @@ librecovery_init()
 	esac
 
 	case "$MACHINE" in
-		one)
+		one|two)
 			KERNEL_PARTITION="/dev/boot"
 			RESCUE_PARTITION="/dev/recovery"
 			ROOT_PARTITION="/dev/${ROOT_NAME}"
@@ -276,7 +291,7 @@ librecovery_init()
 	esac
 
 	case "$MACHINE" in
-		one)
+		one|two)
 			POSTINSTS="dreambox-bootlogo-u-boot kernel-image"
 			;;
 		dm520|dm820|dm7080)
