@@ -21,7 +21,7 @@ exec 5>&1
 librecovery_init()
 {
 	if [ -f /proc/stb/info/mid ]; then
-		read MID </proc/stb/info/mid
+		read MID </proc/stb/info/mid || true
 	else
 		warn "Could not read MID!"
 		mark_legacy_version
@@ -32,7 +32,9 @@ librecovery_init()
 		warn "Could not read CA!"
 		mark_legacy_version
 	elif [ "$MID" != "$CA_MID" ]; then
-		warn "Detected incompatible drivers!"
+		if [ -n "$MID" ]; then
+			warn "Detected incompatible drivers!"
+		fi
 		MID="$CA_MID"
 	fi
 
