@@ -7,7 +7,7 @@ source librecovery
 
 case "${MACHINE}" in
 	one|two)
-		DEVICETREE=/boot/dreamone.dtb
+		DEVICETREE=/boot/dream${MACHINE}.dtb
 		CMDLINE=
 		INITRD=
 		OPTSTRING="c:d:hi:qtv"
