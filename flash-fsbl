@@ -1,30 +1,80 @@
 #!/bin/sh
 #
-# Copyright (C) 2016 Dream Property GmbH
+# Copyright (C) 2020 Dream Property GmbH
 #
 
 source librecovery
 
-OTP=$(readspi --otp -c 192 | base64 | tr -d '\n' | tr '+' '-' | tr '/' '_')
-SHA=$(readspi -c ${FSBL_SIZE} | sha256sum | awk '{print $1}')
+flash_fsbl()
+{
+	local OTP=$(readspi --otp -c 192 | base64 | tr -d '\n' | tr '+' '-' | tr '/' '_')
+	local SHA=$(readspi -c ${FSBL_SIZE} | sha256sum | awk '{print $1}')
 
-[ -n "${OTP}" ] || abort 'Failed to read OTP data'
-[ -n "${SHA}" ] || abort 'Failed to hash FSBL'
+	[ -n "${OTP}" ] || abort 'Failed to read OTP data'
+	[ -n "${SHA}" ] || abort 'Failed to hash FSBL'
 
-URI="http://dreambox.de/verify/fsbl?m=${MID}&o=${OTP}&s=${SHA}"
+	local URI="http://dreambox.de/verify/fsbl?m=${MID}&o=${OTP}&s=${SHA}"
+
+	create_workspace
+	create_keyring "${FSBL_KEY}"
+
+	info "Downloading '${URI}'"
+	wget -q "${URI}" -O fsbl-flasher.tgz >&3 2>&4
+
+	create_directory fsbl-flasher
+	extract_tarball fsbl-flasher.tgz fsbl-flasher
+	verify fsbl-flasher/fsbl-flasher
+
+	info "Running fsbl-flasher"
+	chmod 755 fsbl-flasher/fsbl-flasher || abort "Failed to set execute permissions"
+	xtrap fsbl-flasher/fsbl-flasher || abort "Failed to execute fsbl-flasher"
+	info "Done."
+}
+
+flash_uboot()
+{
+	local pkgdatadir="/usr/share/u-boot-bin"
+	local uboot_bin="${pkgdatadir}/u-boot.bin"
+	local uboot_env="${pkgdatadir}/u-boot.env"
+
+	is_readable_file "${uboot_bin}" || abort "Cannot access '${uboot_bin}'"
+	is_readable_file "${uboot_env}" || abort "Cannot access '${uboot_env}'"
+
+	create_workspace
+	create_keyring "${RECOVERY_KEY}"
+	verify "${uboot_bin}"
+
+	is_file_size_le "${uboot_bin}" "${UBOOT_SIZE}" || abort "U-Boot image is too big"
+	is_writable_blockdev "${UBOOT_PARTITION}" || abort "Target device '${UBOOT_PARTITION}' is not writable"
+
+	source "${uboot_env}"
+
+	local new_hash=$(sha256sum "${uboot_bin}" | awk '{print $1}')
+	for size in ${UBOOT_KNOWN_SIZES}; do
+		local old_hash=$(dd "if=${UBOOT_PARTITION}" "bs=${size}" count=1 iflag=skip_bytes skip=512 2>/dev/null | sha256sum | awk '{print $1}')
+		if [ "${old_hash}" = "${new_hash}" ]; then
+			info "Skipping update of same version of U-Boot"
+			return
+		fi
+
+		local uboot_known_hashes="UBOOT_KNOWN_HASHES_${size}"
+		for known_hash in ${!uboot_known_hashes}; do
+			if [ "${old_hash}" = "${known_hash}" ]; then
+				info "Updating U-Boot"
+				write_lba "${uboot_bin}" "${UBOOT_PARTITION}" 1
+				return
+			fi
+		done
+	done
+
+	abort "Refusing to overwrite an unknown bootloader version"
+}
 
 xgetopts $@
-create_workspace
-create_keyring "$FSBL_KEY"
-
-info "Downloading '${URI}'"
-wget -q "${URI}" -O fsbl-flasher.tgz >&3 2>&4
-
-create_directory fsbl-flasher
-extract_tarball fsbl-flasher.tgz fsbl-flasher
-verify fsbl-flasher/fsbl-flasher
-
-info "Running fsbl-flasher"
-chmod 755 fsbl-flasher/fsbl-flasher || abort "Failed to set execute permissions"
-xtrap fsbl-flasher/fsbl-flasher || abort "Failed to execute fsbl-flasher"
-info "Done."
+if [ -n "${FSBL_KEY}" ]; then
+	flash_fsbl
+elif [ -n "${UBOOT_PARTITION}" ]; then
+	flash_uboot
+else
+	info "Nothing to do"
+fi
