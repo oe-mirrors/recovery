@@ -252,10 +252,12 @@ librecovery_init()
 
 	case "$MACHINE" in
 		one|two)
+			UBOOT_PARTITION="/dev/bootloader"
 			KERNEL_PARTITION="/dev/boot"
 			RESCUE_PARTITION="/dev/recovery"
 			ROOT_PARTITION="/dev/${ROOT_NAME}"
 			DATA_PARTITION="/dev/${DATA_NAME}"
+			UBOOT_SIZE=$((4 * 1024 * 1024))
 			KERNEL_SIZE=$((32 * 1024 * 1024))
 			RESCUE_SIZE=$((32 * 1024 * 1024))
 			;;
