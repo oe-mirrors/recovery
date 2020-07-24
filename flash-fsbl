@@ -51,7 +51,7 @@ flash_uboot()
 
 	local new_hash=$(sha256sum "${uboot_bin}" | awk '{print $1}')
 	for size in ${UBOOT_KNOWN_SIZES}; do
-		local old_hash=$(dd "if=${UBOOT_PARTITION}" "bs=${size}" count=1 iflag=skip_bytes skip=512 2>/dev/null | sha256sum | awk '{print $1}')
+		local old_hash=$(dd "if=${UBOOT_PARTITION}" "bs=$((${size} + 512))" count=1 2>/dev/null | dd skip=1 2>/dev/null | sha256sum | awk '{print $1}')
 		if [ "${old_hash}" = "${new_hash}" ]; then
 			info "Skipping update of same version of U-Boot"
 			return
