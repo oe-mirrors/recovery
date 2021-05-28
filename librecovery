@@ -60,6 +60,9 @@ librecovery_init()
 		25)
 			MACHINE="two"
 			;;
+		26)
+			MACHINE="seven"
+			;;
 		*)
 			[ -f /proc/stb/info/model ] || abort "Unsupported machine!"
 			read MACHINE </proc/stb/info/model
@@ -112,6 +115,10 @@ librecovery_init()
 				IeWW8gpJZ7rJKbsAMgK8kcFcAwEIB4h4BBgWCAAgFiEEs51t5UgCNC6ib8sWw2DRqxVPUwwFAl44
 				N/QCGwwACgkQw2DRqxVPUww5xwEA5VKZFPtJvHJDgbVlq1JaoVwJlOEwSUqf98bdGF8xgyYBAOpb
 				xmIzYBiNvwwgAWvVc6Di8fkwhnP4mJlxsUoWMSsN
+			"
+			;;
+		seven)
+			RECOVERY_KEY="
 			"
 			;;
 		dm520)
@@ -234,7 +241,7 @@ librecovery_init()
 	esac
 
 	case "$MACHINE" in
-		one|two)
+		one|two|seven)
 			FILESYSTEM="ext4"
 			;;
 		dm520)
@@ -251,7 +258,7 @@ librecovery_init()
 	esac
 
 	case "$MACHINE" in
-		one|two)
+		one|two|seven)
 			UBOOT_PARTITION="/dev/bootloader"
 			KERNEL_PARTITION="/dev/boot"
 			RESCUE_PARTITION="/dev/recovery"
@@ -293,7 +300,7 @@ librecovery_init()
 	esac
 
 	case "$MACHINE" in
-		one|two)
+		one|two|seven)
 			POSTINSTS="dreambox-bootlogo-u-boot kernel-image"
 			;;
 		dm520|dm820|dm7080)
