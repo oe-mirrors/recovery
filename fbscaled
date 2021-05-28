@@ -5,7 +5,7 @@
 
 source librecovery
 
-compatible one two
+compatible one two seven
 
 display="/sys/class/display"
 fb="/sys/class/graphics/fb0"
