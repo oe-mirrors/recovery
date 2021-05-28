@@ -5,7 +5,7 @@
 
 source librecovery
 
-compatible one two
+compatible one two seven
 
 xgetopts $@
 shift $((${OPTIND} - 1))
