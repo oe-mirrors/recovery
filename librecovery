@@ -54,7 +54,7 @@ librecovery_init()
 		23)
 			MACHINE="dm920"
 			;;
-		24)
+		24|28)
 			MACHINE="one"
 			;;
 		25)
