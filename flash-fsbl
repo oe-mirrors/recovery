@@ -33,7 +33,7 @@ flash_fsbl()
 
 flash_uboot()
 {
-	local pkgdatadir="/usr/share/u-boot-bin"
+	local pkgdatadir="/usr/share/u-boot-bin/dream${MACHINE}"
 	local uboot_bin="${pkgdatadir}/u-boot.bin"
 	local uboot_env="${pkgdatadir}/u-boot.env"
 
