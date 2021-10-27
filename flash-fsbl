@@ -5,35 +5,12 @@
 
 source librecovery
 
-flash_fsbl()
-{
-	local OTP=$(readspi --otp -c 192 | base64 | tr -d '\n' | tr '+' '-' | tr '/' '_')
-	local SHA=$(readspi -c ${FSBL_SIZE} | sha256sum | awk '{print $1}')
-
-	[ -n "${OTP}" ] || abort 'Failed to read OTP data'
-	[ -n "${SHA}" ] || abort 'Failed to hash FSBL'
-
-	local URI="http://dreambox.de/verify/fsbl?m=${MID}&o=${OTP}&s=${SHA}"
-
-	create_workspace
-	create_keyring "${FSBL_KEY}"
-
-	info "Downloading '${URI}'"
-	wget -q "${URI}" -O fsbl-flasher.tgz >&3 2>&4
-
-	create_directory fsbl-flasher
-	extract_tarball fsbl-flasher.tgz fsbl-flasher
-	verify fsbl-flasher/fsbl-flasher
-
-	info "Running fsbl-flasher"
-	chmod 755 fsbl-flasher/fsbl-flasher || abort "Failed to set execute permissions"
-	xtrap fsbl-flasher/fsbl-flasher || abort "Failed to execute fsbl-flasher"
-	info "Done."
-}
-
 flash_uboot()
 {
 	local pkgdatadir="/usr/share/u-boot-bin/dream${MACHINE}"
+	if ! is_directory "${pkgdatadir}"; then
+		pkgdatadir="/usr/share/u-boot-bin"
+	fi
 	local uboot_bin="${pkgdatadir}/u-boot.bin"
 	local uboot_env="${pkgdatadir}/u-boot.env"
 
@@ -71,9 +48,7 @@ flash_uboot()
 }
 
 xgetopts $@
-if [ -n "${FSBL_KEY}" ]; then
-	flash_fsbl
-elif [ -n "${UBOOT_PARTITION}" ]; then
+if [ -n "${UBOOT_PARTITION}" ]; then
 	flash_uboot
 else
 	info "Nothing to do"
