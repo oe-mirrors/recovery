@@ -4,4 +4,3 @@ autoflashd
 init.d/
 recovery
 to-the-rescue
-writespi

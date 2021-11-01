@@ -2,13 +2,15 @@
 # Copyright (C) 2019 Dream Property GmbH
 #
 
+PART_ROOT=/dev
 ROOT_MOUNTPOINT=/mnt
 ROOT_NAME=dreambox-rootfs
+CMDLINE_ROOTFS=
 DATA_MOUNTPOINT=/data
 DATA_NAME=dreambox-data
 RECOVERY_CACHE=${DATA_MOUNTPOINT}/.recovery
 LEGACY=false
-
+PARTITION_TABLE=
 MOUNTPOINTS=
 WORKSPACE=
 
@@ -39,22 +41,7 @@ librecovery_init()
 	fi
 
 	case "$MID" in
-		19)
-			MACHINE="dm7080"
-			;;
-		20)
-			MACHINE="dm820"
-			;;
-		21)
-			MACHINE="dm520"
-			;;
-		22)
-			MACHINE="dm900"
-			;;
-		23)
-			MACHINE="dm920"
-			;;
-		24|28)
+		24)
 			MACHINE="one"
 			;;
 		25)
@@ -121,120 +108,6 @@ librecovery_init()
 			RECOVERY_KEY="
 			"
 			;;
-		dm520)
-			RECOVERY_KEY="
-				mQENBFcLsf0BCADDo4SxnQwl16cWSYnTwwp+E6ZvdhY3x9yw7b//MUDELtKkEp7wZ+AtHDYd+jzJ
-				Syc+n1m4MkArNUzCdseFJJAYEsNEjZ6ZkoMSQ/GZsIKi2IYT0LXN+9c2ZLLZstNZ2201KwqjFkpE
-				GXSn7VeLAvm82UgMaECY+4vJ5K3XtsLX6onCfidKy4qI8si4CTLylkDegGQ035FlkzqMKA8flafd
-				RGiEWO/2o2ZdYgdjOYQq6W2MaI6zgDzg1V2HMXSweIxnhn8W4iZF80nLTPihoe+p3FRKX0d2G4B0
-				wM49BTgfOgdcu3d3xZBRndOUXq0biga814jYLm3o+DqCmfmt3fsVABEBAAG0NERyZWFtYm94IERN
-				NTIwIFJlY292ZXJ5IDxkbTUyMEByZWNvdmVyeS5kcmVhbWJveC5kZT6JATgEEwECACIFAlcLsf0C
-				GwMGCwkIBwMCBhUIAgkKCwQWAgMBAh4BAheAAAoJENzmv7ygdoPTTw0IAIN+WQMjAQGbSEo6DP41
-				U8g3u3gRVxBWpAPeE8wsq3wMjmDK4kcCohnWzJSqb7O4XFDUO0fsg0InojpYCIvfhSK+7eohwIaJ
-				ilkdM37nUY7TioFY3pOx63ZzDAJ5SsirU26CIxB+hHWueaS/XsGinodzxl6H9/l8I33U/2DN1oUe
-				y9JcHVNxdBRtSNZMYyZXlA+4LrkDDN6/c6kpIG2uZEYOH0WlP+Mqu9G81yYYKiK9MTlsYHcCoSlV
-				XR8VVsVBxKkfSsoWLMkhE7aEFqq+FeVjcrRyc7R+QGhdzwq9gK50iXpr+YxfHJNn2FML185NGwyp
-				Gnvzh5YpHKnihOS+J7c=
-			"
-			;;
-		dm820)
-			RECOVERY_KEY="
-				mQENBFQ5xy0BCADyK6WY3xcKICfVFSbQQ+GXYK9k54bXJ4d2jNaSfk4yAU/YNo2d2ZNTvsN2fQTV
-				2hwQb1yamJ9MDfqS46qio2rxTBpCNjWwn08ANrn5O52VVy/72xceuUl1XW+Hf0ANF2jtgLTzNpIT
-				7uQBXxww7/3WSeoK6EP2xb7cbn5PHxtfv/b71wdq3nUYZWOzHOA4mfaRMZ61n37BkADiA8QJKKNN
-				6xm4gDMTrAZF1QRC5xtVZ0xHgPRxjD2So3+s5Jf+BL+W5OfOeI8/S3VdHDmvLi30D6D3jAGQKYtu
-				gnf6UaBBczoN5otwmeIOdHpxK4hSk8AY0C+umJdaDt6szELgGTq/ABEBAAG0LERyZWFtYm94IERN
-				ODIwIFJlY292ZXJ5IDxyZWNvdmVyeUBkbTgyMC5jb20+iQE4BBMBAgAiBQJUOcctAhsDBgsJCAcD
-				AgYVCAIJCgsEFgIDAQIeAQIXgAAKCRAmJQHXeeLAz2QdCACCxIcajDZ/Zl9V+jAubsCqPlh8Ep+v
-				ECizcjF7YiG9br3HGZCD8SdKQGAYQmMLLlo10Jj91/v6OhqDtpTSU2LyebjJZ0JE5xiWjmA+4bPs
-				tgOe+TmaNlQdT47V9whXx2+hKBYMpKtfv9TYhDoxBrQvaCguyVYDcqGyzslzjZonDeVIQQtLQjpR
-				Bi/eLrrmV+0CiPZowfceX9SJEknomc/TrYDRgoZRoIhZh6WG/68h+kzHN9MYDLwxM9vgxifQ5/xe
-				anMfDItZGZ+rtPKLq/yW6glOw//ctmngLwLO/wuyG7/yeJ98sj7bmO2SP52MvKmj6F8dag+m2V8/
-				4n4KYl7KsAIAAw==
-			"
-			;;
-		dm900)
-			RECOVERY_KEY="
-				mQENBFfS0TQBCADLP/mDLWiIF/dJmVFVzQf9CJ7jtb5ilVf4SOasXkPEbdtDsvIIE8ShAHPUgmYC
-				YGAl5FJNxaPZMhyylC9BZOLeYdUgJVRJXjY2WX/bE/6/J5z9UWj+XPzbnbxC+ZnzOGwyUAiHtwbF
-				YLH0SnCN6LEl+nqgwRwpKBgFp64YyAAJ/Rpj5tK6T9v5QuN5CK/UcClmLSqlC/KSbjf93+W9AyOM
-				9F/apxNnhWyEPPjEQbJV8G1WTDL12j4NER3CwwGr+WlKidNdtqDZYYMx89p/qLoV0kbk8tOB7Szx
-				STFQIpetPi++WlKduS5K1gmVYSU8v9WdSAIDujbH1lqOtBq6AaIFABEBAAG0NERyZWFtYm94IERN
-				OTAwIFJlY292ZXJ5IDxkbTkwMEByZWNvdmVyeS5kcmVhbWJveC5kZT6JATgEEwECACIFAlfS0TQC
-				GwMGCwkIBwMCBhUIAgkKCwQWAgMBAh4BAheAAAoJEPAqD3Z9onVhi9YIALa4eA9XRbyNT/kz2fj9
-				gJ9aLfoxPACbkc2pxwVmLtqeCvsgzEvG62QkFwfL+HDQy2G3YgOSYM8/Z1Y8Agp0iS/QNzNE9v7u
-				cniOy7bX+L+M/zZtLnmY4ixIWcPdMraipjaH3v1c9SUg4eeN6WRgQnPmDA2w+PBViXoAAuqKQrG/
-				7DrGLzXiUzRgxoub4hm1au6KSnEgthn7O33dtCKRDwlCFDHNqdOpgayfGKZ+ENrP5FPZIuSmJH+Z
-				GWxsi2P4cmVwsSE0i1REX3pk1xd4lefdmminxhgsrHnlh4q5O6fSrSlIfNKZ3SZZ3KeSCB21g/9L
-				5jAezlvBvp2M0qC2EDQ=
-			"
-			FSBL_KEY="
-				mQENBFhPLT4BCACu7IxjzWdrzWYh0lbFx9AvMmniszx67gAvvz0AMlug25TsVo+2u+YMacK5QX6b
-				8GLkuUYCETZzadaSoOd3WqUadjmtgqa1+G4BZPEHSuyrmMGuathRWCHXJ0dXC7d41ckZS0ufpHM7
-				/a9MBh4sJUdrVrGCvxfRYms/R3CrWJgEcZGgHfeS85XFTAQygALnLtk4j/12am9npLDOFAfxy5D1
-				GOi832omdu+QeCLpBqjCXbYm3C6+Vwpkm/780o0tGAuogKhflsc0C9ax50oEtj/G7xLCoIjcKpxr
-				mX3fh6kxD54mIj0nMSvSJiDkLICDBsKRuOJ+HCrqo0yK5r6LsH2TABEBAAG0NURyZWFtYm94IERN
-				OTAwIChGU0JMIHVwZGF0ZSkgPGRtOTAwQGZzYmwuZHJlYW1ib3guZGU+iQE4BBMBAgAiBQJYTy0+
-				AhsDBgsJCAcDAgYVCAIJCgsEFgIDAQIeAQIXgAAKCRBo07UpmBtXLJrCB/4u4tsMBivjsKlrGdvu
-				/QiOO2+CO2XXItfFctyOgUsqIUonYAJK6BUv2rb0wMqSjwGcqjQjqdtefe4aILqZKqjlyneIkyrx
-				J7e/W24g43xo6tVGQuX8RXXEGeN2NaqVL3HUi+BAvPwAqZujQn0RA8VLE8U5KrdAhKm5VxcnHurh
-				AaqnV6GBTmjIqJSLMzIcUAqi4Y1Pv2FfHMYJZetArH0CQFH2BZthhheWj/BvKOSBJUFMcWGpwZeo
-				sPMw9rDJPziwiMhLqFlLip3bk4PU1NSSluTvPyxoVh43P4flCSuvZKZgz/aJ+6IB8O1SYLPRu+51
-				kII48WItRJMlH2Fpur47uQENBFhPLT4BCACyzVlv6Ne3JodR+yihnizl622H8xstIqXVVXnmUwBR
-				rbQg4/NpqtDNEIh1GdhLgE3F+dFMRBlNFsGcHbEhmB9Gn0LNHFjDkKB4/LFqVh2k4aemRF6xafkd
-				kZNwMU390OG21AgxGYoOP/YDqHKEdQ0+H+1qjyIuCu66UwX1U22Y6si9iXhBVXEkv+Ga4b1LMCoX
-				M/664oeU2hey7UcWkiFibJ8E2jLGIu4+8wNBDvt9I+2p6gSlu6xwvUSmpBhU+wo2/+uav7WAb6Ub
-				bpRZ6URvb2F0o2xSJ7FlRYyGGCcOXcLYRQzUt2ataS7th1/NNKmtSUFwCemrQJU9Lpt+NtHPABEB
-				AAGJAR8EGAECAAkFAlhPLT4CGwwACgkQaNO1KZgbVyy4pgf/TVckA31sAHQXwkzvF5rmRo/KqBBL
-				pRtCaY+48l/Ac5aXT1evsjRZKBCkU4QOkJsytP0E3Rj/o8kAcT34uS+7J4xZGdyM+hcR6huA4CDK
-				z6gz3op9mGHF0PIbY7cm6tu+k32iuy+Tp5a3oPywUSkoMw8FT6GwmSf3VADOMR3TdiTP9XRvhgGW
-				qCtHm0s91wOwsYifEDyNLg39QW801YXKup7Gj7E0u8p1c9Ey+Gifio/YrAB4YaJuP0uaM2Mt6OJp
-				kl9JWN12d5M7linrcbpm2/WpzKzSfw5LEtzZSeEO0CaYRwhoYKxUsaMZwMFGtuUDw34RbHDqfpok
-				s3F9cSJ97g==
-			"
-			;;
-		dm920)
-			RECOVERY_KEY="
-				mQENBFmygj0BCADUI6wYunFIwnFoLVY1k3h+NiaW3GumWcts3Rx8OX1J9v/zsSi55xeLZOKEz1Jt
-				pFGY8EOShk4VmcGOtrxwjHfURyEfUZGWR8SqGD0OoxgJdYJImGVp32MdhkZTETzJodIs7n7/9mPz
-				ah/QWlYiFL0ExEPVMPRhopmJEFQ4IQTDKPhyERbZjta2Xtp89sErKXKkbtG3Qb9tRGN5l5XKXbCG
-				3qaIl0+X5h8mg5neS5d0a9IwLeD2LUElOKsnbnoQWUVmNlDCQSQwnYGj38CA/IxzKQItKJtYr5a3
-				zDqbkEDpdAja0BW8kApngToNIJaf/Vi5Vk3YJN29lLa4ISJEYjzNABEBAAG0NERyZWFtYm94IERN
-				OTIwIFJlY292ZXJ5IDxkbTkyMEByZWNvdmVyeS5kcmVhbWJveC5kZT6JATcEEwEIACEFAlmygj0C
-				GwMFCwkIBwIGFQgJCgsCBBYCAwECHgECF4AACgkQQEJVMbPFsaPONAf/RAGd45cXIfJBKtXsILzt
-				HFql0wGZo5XhnAegYEOVShmKFhdHQJeOdW628TAIKJXeX0Po8pVtIDIpFf42ebmp3MdJMjk2XvZX
-				MFwoXcw2RerRZ+MMbuAe+vm1vjXfpgBG6guT8c9bT6Z1D7npaSK2eW4AkeVgpQtaYWxVkvaelNuH
-				oW3Xc6pcbhil4YITQA7qNHZMmieTWutG0+CPhw1DlexFSyCjixr0kD500O64cHOIKOXs1Xj6h/IC
-				qCPkncI1ZQizyGBUKqWc1RSm/f7VA2+Pa3cUVDO99+LGBjt1yfxPP+9Un9kte7Tlt5BJzUIxwEkn
-				yJqNWy6snJD7buu2w7kBDQRZsoI9AQgAsnbCKWrXrlwvmw/zpXS8FnxDiNrc669X0xQzBRdQs6b6
-				Nj32FnoEoechsuOlwyCZtHXoIZSAtkdJ4yMJlouMXSnD1xhxiEBQ6v3qlEdL3ASxlEWzzTtgKePZ
-				/GS+KyfAAsDzNlTe2uZEsVa/6yH82A919kD6FeuDVqT0WtfyzidJkkERKhdG+AZe8fA6SIbkuoo3
-				/lw8QFvfIlbOg4XYlox8WyMetjqFbT+n8wlf0auijuLUsueMeknX+dDsoKeK5DGso1A85EyBfeML
-				szNOMUtzhpGG8WQL9kjYBoymKJaSh7nhuwop8hupJD6tHyBuvi/deNF+YvYE40WmleJtVwARAQAB
-				iQEfBBgBCAAJBQJZsoI9AhsMAAoJEEBCVTGzxbGj40YIALJfWEQ0UrkNoKWtjE7LXhmxlgaESb22
-				FgymbixwQN/qxiP0JAxO6XZJOArT1+L79RKHDgGKb8hJjD6iYPwr479CWFjsDKsofB3ceK8lCU2L
-				FFMlB8i0K2d0EB33R1Xcrkc8FcqUZhjoEX8x1jnGDBbD0g5S4qilHCOKrANmaqd+KnBAE1M24Yts
-				S9/eP6lf65pWyFmN4du0jCGxSHGocTJ3B60xcRSVlsqdcqE+rqR2xya5ugbW9r5/nU37wWaTj0lz
-				mkS+EykH2gxlNxcCIRkhQkuCptJa9ooqSRX0lVxuvLxJHQ6E/lpgK4Tm1Cs1SdGk4tYfG03c3xpA
-				MfI1m4s=
-			"
-			;;
-		dm7080)
-			RECOVERY_KEY="
-				mQENBFPo2oUBCAC6dzqe5azBCkxzj99xNfzwB4L6tHzz83zqD2KUQuuJMhO7Q2g9AHnSNQ0z1+Bz
-				oX2gGX90FusBSLiCuZmNdnxlcl7KVfBe37EpYtQNGCZKlWeruCAUdJGKIyPJXDvkXCy3dj6z1ho8
-				p1r3uazEbUbJyLvwjzcg0Ua1qxFjLoq/h15yDgd0NCkMStL6gwKdmReLRfE/tn0K53CVQzIeEFyn
-				EW3N0tu2deiYkanHy/MM9IOIv3oQmoEWNaVsDf+gG7nUPj0QE66GOYlBugR5vNi3BorOctarQp/8
-				Dh56muiqomwwewJubzsvjUjpiYXdO/3RN2gOej2+5hUCiYmvOahfABEBAAG0LkRyZWFtYm94IERN
-				NzA4MCBSZWNvdmVyeSA8cmVjb3ZlcnlAZG03MDgwLmNvbT6JATgEEwECACIFAlPo2oUCGwMGCwkI
-				BwMCBhUIAgkKCwQWAgMBAh4BAheAAAoJEBWob67Wz1bnUGYH/0zmTS7Gtvv97oHHnz3JSkLybDRj
-				Jx/wH+vpzyCRl8rC7TlHs5GBfjoJ1Hjo4DsZqElTb8g+kg5WGzMBUUuwabRhZuf2CL7/IPKP+LWH
-				t2ByZX3OgS1Q+HDLob5wlKllD9y/wwekuwS/8cgdnDH9URHCBqIt5gWQzLU1pvmQrKPXM1aMsLQj
-				16vbktXNkREF/cNhWfQFQs2dOwmzNEDeuE32I6h7PYl1bFP0hCOmbkcTuibnC+tsWOJMKF1iZ8bq
-				xDND9BYTwGtD2SVrddu3i4kBz6hka01ZnfSUZewpu+TrCgaD6oENfarPiC9VYfKEFi10RIPIxwRX
-				s1tBOOQNKpywAgAD
-			"
-			;;
 		*)
 			abort "Unsupported machine!"
 			;;
@@ -242,60 +115,26 @@ librecovery_init()
 
 	case "$MACHINE" in
 		one|two|seven)
-			FILESYSTEM="ext4"
-			;;
-		dm520)
-			FLASH_DEVICE="/dev/mtd0"
-			UBI_ID="0"
-			UBI_DEVICE="/dev/ubi${UBI_ID}"
-			UBI_VOL_ID="0"
-			FILESYSTEM="ubifs"
-			;;
-		dm820|dm900|dm920|dm7080)
 			FLASH_DEVICE="/dev/mmcblk0"
 			FILESYSTEM="ext4"
-			;;
-	esac
 
-	case "$MACHINE" in
-		one|two|seven)
-			UBOOT_PARTITION="/dev/bootloader"
-			KERNEL_PARTITION="/dev/boot"
-			RESCUE_PARTITION="/dev/recovery"
-			ROOT_PARTITION="/dev/${ROOT_NAME}"
-			DATA_PARTITION="/dev/${DATA_NAME}"
+			set_device_paths || abort "Device path setup failed!"
+
 			UBOOT_SIZE=$((4 * 1024 * 1024))
 			KERNEL_SIZE=$((32 * 1024 * 1024))
 			RESCUE_SIZE=$((32 * 1024 * 1024))
-			;;
-		dm520)
-			KERNEL_PARTITION="/dev/mtd2"
-			ROOT_PARTITION="${UBI_DEVICE}_${UBI_VOL_ID}"
-			DATA_PARTITION="/dev/disk/by-label/${DATA_NAME}"
-			KERNEL_SIZE=$((5 * 1024 * 1024))
-			SSBL_SIZE=$((1024 * 1024))
-			;;
-		dm820|dm7080)
-			ROOT_PARTITION="/dev/mmcblk0p1"
-			DATA_PARTITION="/dev/mmcblk0p2"
-			KERNEL_SIZE=$((32 * 1024 * 1024))
-			SSBL_SIZE=$((4 * 1024 * 1024))
-			SGDISK_ARGS="-n 1:147456:4194303 -c 1:rootfs -t 1:8307
-			             -n 2:4194304: -c 2:data -t 2:8300"
-			PARTED_ARGS="mkpart primary ext2 72MiB 2048MiB
-			             mkpart primary ext2 2048MiB 100%"
-			;;
-		dm900|dm920)
-			KERNEL_PARTITION="/dev/mmcblk0p1"
-			ROOT_PARTITION="/dev/mmcblk0p2"
-			DATA_PARTITION="/dev/mmcblk0p3"
-			KERNEL_SIZE=$((31 * 1024 * 1024))
-			SGDISK_ARGS="-n 1:2048:65535 -c 1:kernel -t 1:8301
-			             -n 2:65536:4194303 -c 2:rootfs -t 2:8307
-			             -n 3:4194304: -c 3:data -t 3:8300"
-			PARTED_ARGS="mkpart primary ext2 1MiB 32MiB
-			             mkpart primary ext2 32MiB 2048MiB
-			             mkpart primary ext2 2048MiB 100%"
+			PARTED_ARGS="mkpart primary ext4 4MB 116MiB
+							name 1 u-boot-reserved
+							mkpart primary ext4 116MiB 132MiB
+							name 2 u-boot-env
+							mkpart primary ext4 132MiB 256MiB
+							name 3 recovery
+							mkpart primary ext4 256MiB 8GiB
+							name 4 dreambox-data
+							mkpart primary ext4 8GiB 10GiB
+							name 5 dreambox-rootfs
+							mkpart primary ext4 10GiB 12GiB
+							name 6 dreambox-rootfs-1"
 			;;
 	esac
 
@@ -303,15 +142,27 @@ librecovery_init()
 		one|two|seven)
 			POSTINSTS="dreambox-bootlogo-u-boot kernel-image"
 			;;
-		dm520|dm820|dm7080)
-			FSBL_SIZE=$((1024 * 1024))
-			POSTINSTS="dreambox-secondstage kernel-image"
-			;;
-		dm900|dm920)
-			FSBL_SIZE=$((3 * 512 * 1024))
-			POSTINSTS="kernel-image"
-			;;
 	esac
+}
+
+set_device_paths()
+{
+	UBOOT_PARTITION_LEGACY="/dev/bootloader"
+	if is_gpt; then
+		PART_ROOT="/dev/disk/by-partlabel"
+		KERNEL_PARTITION="/dev/null"
+		UBOOT_PARTITION="${FLASH_DEVICE}boot0"
+		CMDLINE_ROOTFS="mmcblk0p5"
+	else
+		info "legacy"
+		PART_ROOT="/dev"
+		KERNEL_PARTITION="/dev/boot"
+		UBOOT_PARTITION="/dev/bootloader"
+	fi
+
+	RESCUE_PARTITION="${PART_ROOT}/recovery"
+	ROOT_PARTITION="${PART_ROOT}/${ROOT_NAME}"
+	DATA_PARTITION="${PART_ROOT}/${DATA_NAME}"
 }
 
 is_beneath_directory()
@@ -327,6 +178,33 @@ is_beneath_directory()
 			false
 			;;
 	esac
+}
+
+is_gpt()
+{
+	PARTITION_TABLE=`parted $FLASH_DEVICE print | grep Partition | awk '{print $3}'`
+	[ $PARTITION_TABLE = "gpt" ]
+}
+
+is_gpt_uboot()
+{
+	case "$MACHINE" in
+		one|two|seven)
+			;;
+		*)
+			false
+			return
+			;;
+	esac
+
+	local bl_hash=$(dd "if=${UBOOT_PARTITION}" "bs=$((${size} + 512))" count=1 2>/dev/null | dd skip=1 2>/dev/null | sha256sum | awk '{print $1}')
+	case "$bl_hash" in
+			1938acdc29f2639f9b8bafc13ecb43c3d0c065ee3768b64b285d7d911ce1597d|c1c8f9a48b573198bc498698bc9c44eef5d0394bb84bb37ef59195853d012b1f|430990893f1de7984a017767ab6bc4a9086ed429a45d15930ace1773914c7fda)
+					false
+					return
+					;;
+	esac
+	true
 }
 
 is_blockdev()
@@ -495,33 +373,19 @@ write_nand()
 	xtrap nandwrite -p -m "${1}" "${2}"
 }
 
-format_ubi_device()
-{
-	info "Formatting ${1} for UBI"
-	xtrap ubiformat -y "${1}"
-}
-
-attach_ubi_device()
-{
-	info "Attaching ${1} to UBI"
-	xtrap ubiattach -d "${UBI_ID}" -p "${1}"
-}
-
-remove_ubi_volume()
-{
-	info "Removing volume ${UBI_VOL_ID} from ${UBI_DEVICE}"
-	xtrap ubirmvol "${UBI_DEVICE}" -n "${UBI_VOL_ID}"
-}
-
-create_ubi_volume()
-{
-	info "Creating volume ${UBI_VOL_ID} on ${UBI_DEVICE} (${ROOT_NAME})"
-	xtrap ubimkvol "${UBI_DEVICE}" -n "${UBI_VOL_ID}" -N "${ROOT_NAME}" -m
-}
-
 create_partition_table()
 {
 	info "Creating partition table"
+	if is_gpt_uboot; then
+		if $2; then
+			info "Creating GPT for multiboot u-boot"
+			create_gpt_partition_table $1
+		else
+			info "No GPT creation requested, skipping!"
+		fi
+		return
+	fi
+
 	[ -n "${SGDISK_ARGS}" ] || abort "Can't create partition without SGDISK_ARGS."
 	if hash sgdisk 2>/dev/null; then
 		xtrap sgdisk -Z "${1}" || true
@@ -530,6 +394,44 @@ create_partition_table()
 		mark_legacy_version
 		xtrap parted --script --align=optimal "${1}" -- mklabel gpt ${PARTED_ARGS}
 	fi
+}
+
+clone_uboot()
+{
+	write_lba "${UBOOT_PARTITION_LEGACY}" "${UBOOT_PARTITION}" 0
+}
+
+create_gpt_partition_table()
+{
+	if ! is_gpt; then
+		clone_uboot
+	fi
+	xtrap parted --script --align=optimal "${1}" -- mklabel gpt ${PARTED_ARGS}
+	set_device_paths
+}
+
+
+
+create_bootmenu()
+{
+	if ! is_gpt; then
+		echo "No GPT found, so no bootmenu.txt is required!"
+		false;
+		return;
+	fi
+	safe_mount "${DATA_PARTITION}" "${DATA_MOUNTPOINT}" || abort "Failed to mount data filesystem"
+	local bootconfig="${DATA_MOUNTPOINT}/bootconfig.txt"
+	info "Generating '${bootconfig}'"
+	echo "details=1" > $bootconfig
+	echo "timeout=20" >> $bootconfig
+	echo "fb_pos=100,400" >> $bootconfig
+	echo "fb_size=1080,300" >> $bootconfig
+	echo "[Dreambox Image]" >> $bootconfig
+	echo "cmd=ext4load mmc 1:5 1080000 /boot/kernel.img;bootm;" >> $bootconfig
+	echo "arg=" >> $bootconfig
+	echo "[Dreambox Recovery]" >> $bootconfig
+	echo 'cmd=imgread kernel recovery ${loadaddr} 0; bootm ${loadaddr};' >> $bootconfig
+	echo "arg=" >> $bootconfig
 }
 
 create_tarball()
@@ -860,16 +762,6 @@ write_lba()
 {
 	info "Writing ${1} to ${2} (LBA: ${3})"
 	xdd if="${1}" of="${2}" bs=512 seek="${3}"
-}
-
-select_boot_source()
-{
-	case "${MACHINE}" in
-		dm820|dm7080)
-			info "Enabling boot source ${2}"
-			printf "opt${2}\0" | xdd of=${1} bs=512 seek=64
-			;;
-	esac
 }
 
 usage()

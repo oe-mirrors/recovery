@@ -12,17 +12,6 @@ case "${MACHINE}" in
 		INITRD=
 		OPTSTRING="c:d:hi:qtv"
 		;;
-	dm820|dm7080)
-		MEM_SIZE=0x10000000
-		ARC_IMAGES=/usr/share/fastboot/lcd_anim.bin
-		OPTION=A
-		CMDLINE=
-		INITRD=
-		OPTSTRING="a:c:hi:m:o:qtv"
-		;;
-	*)
-		OPTSTRING="hqtv"
-		;;
 esac
 
 create_blob()
@@ -63,10 +52,14 @@ create_bootimg()
 	fi
 	ARGS="${ARGS} --board ${MACHINE}"
 
-	info "Creating boot image"
+	info "Creating boot image - cmdline=${CMDLINE}"
 	if is_empty "${CMDLINE}"; then
 		mkbootimg ${ARGS} >&3 2>&4
 	else
+		if is_gpt; then
+			CMDLINE=$(echo ${CMDLINE} | sed -e "s/mmcblk0p7/${CMDLINE_ROOTFS}/g")
+		fi
+		info "Kernel command-line: ${CMDLINE}"
 		mkbootimg ${ARGS} --cmdline "${CMDLINE}" >&3 2>&4
 	fi
 }
@@ -85,19 +78,8 @@ write_blob()
 
 usage()
 {
-	case "${MACHINE}" in
-		one|two|seven)
-			echo "Usage: ${0} [-hqtv] [-c <cmdline>] [-d <devicetree>] [-i <initrd>] <vmlinux.bin>"
-			echo "       Default: -d ${DEVICETREE}"
-			;;
-		dm820|dm7080)
-			echo "Usage: ${0} [-hqtv] [-a <arc images>] [-c <cmdline>] [-i <initrd>] [-m <mem-size>] [-o A|B] <vmlinux.bin>"
-			echo "       Default: -a ${ARC_IMAGES} -m ${MEM_SIZE} -o ${OPTION}"
-			;;
-		*)
-			echo "Usage: ${0} [-hqtv] <kernel-image>"
-			;;
-	esac
+	echo "Usage: ${0} [-hqtv] [-c <cmdline>] [-d <devicetree>] [-i <initrd>] <vmlinux.bin>"
+	echo "       Default: -d ${DEVICETREE}"
 	exit ${1}
 }
 
@@ -139,37 +121,12 @@ is_writable_blockdev "${DEVICE}" || is_writable_chardev "${DEVICE}" || abort "Ta
 case "${MACHINE}" in
 	one|two|seven)
 		create_workspace
-		create_bootimg bootblob.bin || abort "Failed to create boot image"
-		is_file_size_le bootblob.bin "${KERNEL_SIZE}" || abort "Boot image is too big"
-		write_blkdev bootblob.bin "${KERNEL_PARTITION}" || abort "Failed to flash boot image"
-		;;
-	dm520)
-		erase "${DEVICE}" || abort "Failed to erase ${DEVICE}"
-		write_nand "${DEVICE}" "${VMLINUX}" || abort "Failed to flash kernel image"
-		;;
-	dm820|dm7080)
-		IFS=:
-		for FILE in ${ARC_IMAGES}; do
-			is_readable_file "${FILE}" || abort "Cannot access '${FILE}'"
-		done
-		unset IFS
-		is_empty "${INITRD}" || is_readable_file "${INITRD}" || abort "Cannot access '${INITRD}'"
-
-		case "${OPTION}" in
-			A|B)
-				;;
-			*)
-				abort "Invalid boot option: ${OPTION}"
-				;;
-		esac
-
-		create_workspace
-		create_blob bootblob.bin || abort "Failed to create boot image"
-		is_file_size_le bootblob.bin "${KERNEL_SIZE}" || abort "Boot image is too big"
-		write_blob bootblob.bin "${DEVICE}" "${OPTION}" || abort "Failed to flash boot image"
-		select_boot_source "${DEVICE}" "${OPTION}" || abort "Failed to enable boot source"
-		;;
-	dm900|dm920)
-		write_blkdev "${VMLINUX}" "${DEVICE}" || abort "Failed to flash kernel image"
+		if is_gpt; then
+			create_bootimg "/boot/kernel.img" || abort "Failed to create boot image"
+		else
+			create_bootimg bootblob.bin || abort "Failed to create boot image"
+			is_file_size_le bootblob.bin "${KERNEL_SIZE}" || abort "Boot image is too big"
+			write_blkdev bootblob.bin "${KERNEL_PARTITION}" || abort "Failed to flash boot image"
+		fi
 		;;
 esac

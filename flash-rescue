@@ -21,6 +21,6 @@ is_readable_file "${FILENAME}" || abort "Cannot access '${FILENAME}'"
 if [ -n "${RESCUE_PARTITION}" ]; then
 	write_blkdev "${FILENAME}" "${RESCUE_PARTITION}"
 else
-	writespi "${FILENAME}" kernel || abort "Failed to write rescue image"
+	abort "Failed to write rescue image"
 fi
 rm -f /etc/.rescue-update-suggested

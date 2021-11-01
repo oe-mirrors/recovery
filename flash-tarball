@@ -7,16 +7,17 @@ source librecovery
 
 usage()
 {
-	echo "Usage: ${0} [-bhqrtv] <dreambox-image.tar.xz>"
+	echo "Usage: ${0} [-bhqrtgv] <dreambox-image.tar.xz>"
 	exit ${1}
 }
 
 BACKUP_SETTINGS=":"
 RESTORE_SETTINGS=":"
+GPT_RECREATE=false
 SETTINGS="settings.tar.gz"
 UPDATE_CACHE_SIGNED=":"
 
-while getopts bchqrtv opt; do
+while getopts bchqrtgv opt; do
 	case "${opt}" in
 		b)
 			BACKUP_SETTINGS="backup-settings ${SETTINGS}"
@@ -26,6 +27,9 @@ while getopts bchqrtv opt; do
 			;;
 		r)
 			RESTORE_SETTINGS="restore-settings ${SETTINGS}"
+			;;
+		g)
+			GPT_RECREATE=true
 			;;
 	esac
 	std_opt "${opt}"
@@ -62,12 +66,6 @@ if [ -n "${BASE_URI}" ]; then
 	fetch_signed "${BASE_URI}" "${FILENAME}"
 fi
 
-if [ -n "${UBI_DEVICE}" ] && ! is_chardev "${UBI_DEVICE}" && ! attach_ubi_device "${FLASH_DEVICE}"; then
-	erase "${FLASH_DEVICE}" || abort "Failed to erase ${FLASH_DEVICE}"
-	format_ubi_device "${FLASH_DEVICE}" || abort "Failed to format ${FLASH_DEVICE}"
-	attach_ubi_device "${FLASH_DEVICE}" || abort "Failed to attach ${FLASH_DEVICE} to UBI"
-fi
-
 [ ! -f "${RECOVERY_CACHE}/settings.tar.gz" ] || cp ${RECOVERY_CACHE}/settings.tar.gz ${SETTINGS}
 if blkdev_has_filesystem "${ROOT_PARTITION}" || is_chardev "${ROOT_PARTITION}"; then
 	${BACKUP_SETTINGS}
@@ -76,31 +74,22 @@ fi
 
 unmount "${ROOT_MOUNTPOINT}" || abort "Failed to unmount root filesystem"
 
-if [ -n "${UBI_DEVICE}" ]; then
-	if is_chardev "${ROOT_PARTITION}"; then
-		remove_ubi_volume || abort "Failed to remove UBI volume"
+if $GPT_RECREATE || ! is_blockdev "${ROOT_PARTITION}" || ! blkdev_has_filesystem "${DATA_PARTITION}"; then
+	if is_beneath_directory "${FILENAME}" "${DATA_MOUNTPOINT}"; then
+		xcp "${FILENAME}" .
+		FILENAME=`basename "${FILENAME}"`
 	fi
-
-	create_ubi_volume || abort "Failed to create UBI volume"
-	udevadm settle
-	create_nand_filesystem "${ROOT_PARTITION}" || abort "Failed to create ${FILESYSTEM} filesystem on '${ROOT_PARTITION}'"
-else
-	if ! is_blockdev "${ROOT_PARTITION}" || ! blkdev_has_filesystem "${DATA_PARTITION}"; then
-		if is_beneath_directory "${FILENAME}" "${DATA_MOUNTPOINT}"; then
-			xcp "${FILENAME}" .
-			FILENAME=`basename "${FILENAME}"`
-		fi
-		unmount "${DATA_MOUNTPOINT}" || abort "Failed to unmount data filesystem"
-		if ! is_blockdev "${ROOT_PARTITION}" || ! is_blockdev "${DATA_PARTITION}"; then
-			create_partition_table "${FLASH_DEVICE}" || abort "Failed to partition disk"
-		fi
-		if ! blkdev_has_filesystem "${DATA_PARTITION}"; then
-			create_filesystem "${DATA_NAME}" "${DATA_PARTITION}" || warn "Failed to create ${FILESYSTEM} filesystem '${DATA_NAME}' on '${DATA_PARTITION}'"
-		fi
-		mount_cache
+	unmount "${DATA_MOUNTPOINT}" || abort "Failed to unmount data filesystem"
+	if $GPT_RECREATE || ! is_blockdev "${ROOT_PARTITION}" || ! is_blockdev "${DATA_PARTITION}"; then
+		create_partition_table "${FLASH_DEVICE}" $GPT_RECREATE || abort "Failed to partition disk"
 	fi
-	create_filesystem "${ROOT_NAME}" "${ROOT_PARTITION}" || abort "Failed to create ${FILESYSTEM} filesystem '${ROOT_NAME}' on '${ROOT_PARTITION}'"
+	if ! blkdev_has_filesystem "${DATA_PARTITION}"; then
+		create_filesystem "${DATA_NAME}" "${DATA_PARTITION}" || warn "Failed to create ${FILESYSTEM} filesystem '${DATA_NAME}' on '${DATA_PARTITION}'"
+	fi
+	mount_cache
 fi
+create_filesystem "${ROOT_NAME}" "${ROOT_PARTITION}" || abort "Failed to create ${FILESYSTEM} filesystem '${ROOT_NAME}' on '${ROOT_PARTITION}'"
+
 
 safe_mount "${ROOT_PARTITION}" "${ROOT_MOUNTPOINT}" || abort "Failed to mount root filesystem"
 extract_tarball "${FILENAME}" "${ROOT_MOUNTPOINT}" || abort "Failed to extract root filesystem"
@@ -108,6 +97,9 @@ run_postinsts "${ROOT_MOUNTPOINT}" ${POSTINSTS} || abort "Failed to run postinst
 ${RESTORE_SETTINGS}
 if is_legacy_version && [ -d "${ROOT_MOUNTPOINT}/etc" ]; then
 	touch "${ROOT_MOUNTPOINT}/etc/.rescue-update-suggested"
+fi
+if $GPT_RECREATE; then
+	create_bootmenu
 fi
 unmount "${ROOT_MOUNTPOINT}" || warn "Failed to unmount root filesystem"
 

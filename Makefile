@@ -19,10 +19,10 @@ override CPPFLAGS := $(CPPFLAGS) -D_DEFAULT_SOURCE -DNDEBUG
 
 SCRIPTS := apt-diff backup-settings backup-tarball \
            fbscaled flash-fsbl flash-kernel \
-           flash-rescue flash-ssbl flash-tarball help librecovery \
-           restore-settings run-recovery select-boot-source \
+           flash-rescue flash-tarball help librecovery \
+           restore-settings run-recovery \
            update-autoexec update-rescue
-TARGETS := autoflashd recovery to-the-rescue writespi
+TARGETS := autoflashd recovery to-the-rescue
 INITSCRIPTS := init.d/autoflashd init.d/fbscaled
 
 default: $(TARGETS) $(INITSCRIPTS)
@@ -44,8 +44,6 @@ recovery: flash-tarball librecovery recovery.head recovery.tail
 
 to-the-rescue: io.o
 
-writespi: io.o
-
 clean:
 	$(RM) $(wildcard $(TARGETS) $(INITSCRIPTS) *.o)
 
@@ -56,4 +54,3 @@ install: $(TARGETS) $(INITSCRIPTS)
 	install -m 755 $(SCRIPTS) $(TARGETS) $(DESTDIR)$(sbindir)
 	install -d $(DESTDIR)$(sysconfdir)/recovery/backup-hooks.d
 	install -m 755 backup-hooks.d/*.sh $(DESTDIR)$(sysconfdir)/recovery/backup-hooks.d
-	ln -nsf writespi $(DESTDIR)$(sbindir)/readspi
