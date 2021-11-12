@@ -422,8 +422,8 @@ create_bootmenu()
 	safe_mount "${DATA_PARTITION}" "${DATA_MOUNTPOINT}" || abort "Failed to mount data filesystem"
 	local bootconfig="${DATA_MOUNTPOINT}/bootconfig.txt"
 	info "Generating '${bootconfig}'"
-	echo "details=1" > $bootconfig
-	echo "timeout=20" >> $bootconfig
+	echo "details=0" > $bootconfig
+	echo "timeout=1" >> $bootconfig
 	echo "fb_pos=100,400" >> $bootconfig
 	echo "fb_size=1080,300" >> $bootconfig
 	echo "[Dreambox Image]" >> $bootconfig
