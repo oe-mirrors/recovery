@@ -72,7 +72,7 @@ if blkdev_has_filesystem "${ROOT_PARTITION}" || is_chardev "${ROOT_PARTITION}"; 
 fi
 [ "${RESTORE_SETTINGS}" = ":" -o -f "${SETTINGS}" ] || abort "Can't restore settings without prior backup!"
 
-unmount "${ROOT_MOUNTPOINT}" || abort "Failed to unmount root filesystem"
+unmount "${ROOT_MOUNTPOINT}" || warn "Failed to unmount root filesystem!"
 
 if $GPT_RECREATE || ! is_blockdev "${ROOT_PARTITION}" || ! blkdev_has_filesystem "${DATA_PARTITION}"; then
 	if is_beneath_directory "${FILENAME}" "${DATA_MOUNTPOINT}"; then

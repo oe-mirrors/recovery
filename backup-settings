@@ -62,6 +62,5 @@ $(grep -hs '^/' "${WORKSPACE}"/backup-lists.d/*.list || true)
 printf "${BACKUP_PATHS}" >"tmp/.recovery/backup-paths.bak"
 sed -n -e 's,^root:\([^:]*\):.*,\1,p' "${ROOT_MOUNTPOINT}/etc/shadow" >"tmp/.recovery/pwhash-root.bak"
 (cd "${ROOT_MOUNTPOINT}/var/lib/dpkg/info" && ls -1 *.list) | sed -e 's,\.list$,,' > "tmp/.recovery/packages.bak"
-
-safe_mount tmp "${ROOT_MOUNTPOINT}/tmp" -o bind || abort "Failed to mount ${ROOT_MOUNTPOINT}/tmp"
+safe_mount tmp "${ROOT_MOUNTPOINT}/tmp" -o bind || warn "Failed to mount ${ROOT_MOUNTPOINT}/tmp - using local tmp"
 create_tarball "${ROOT_MOUNTPOINT}" "${FILENAME}" "${BACKUP_PATHS}" || abort "Failed to create ${FILENAME}"
