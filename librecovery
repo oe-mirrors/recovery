@@ -872,4 +872,12 @@ is_legacy_version()
 	${LEGACY}
 }
 
+root_password_remove()
+{
+	if [ -x "${ROOT_MOUNTPOINT}/usr/bin/passwd" ]; then
+		xchroot ${ROOT_MOUNTPOINT} /usr/bin/passwd -d root || abort "Failed to remove root password protection"
+		info "Root password protection removed."
+	fi
+}
+
 librecovery_init

@@ -14,10 +14,11 @@ usage()
 BACKUP_SETTINGS=":"
 RESTORE_SETTINGS=":"
 GPT_RECREATE=false
+PASSWORT_REMOVE=false
 SETTINGS="settings.tar.gz"
 UPDATE_CACHE_SIGNED=":"
 
-while getopts bchqrtgv opt; do
+while getopts bchqrtgpv opt; do
 	case "${opt}" in
 		b)
 			BACKUP_SETTINGS="backup-settings ${SETTINGS}"
@@ -30,6 +31,9 @@ while getopts bchqrtgv opt; do
 			;;
 		g)
 			GPT_RECREATE=true
+			;;
+		p)
+			PASSWORT_REMOVE=true
 			;;
 	esac
 	std_opt "${opt}"
@@ -95,6 +99,9 @@ safe_mount "${ROOT_PARTITION}" "${ROOT_MOUNTPOINT}" || abort "Failed to mount ro
 extract_tarball "${FILENAME}" "${ROOT_MOUNTPOINT}" || abort "Failed to extract root filesystem"
 run_postinsts "${ROOT_MOUNTPOINT}" ${POSTINSTS} || abort "Failed to run postinst scripts"
 ${RESTORE_SETTINGS}
+if $PASSWORT_REMOVE; then
+	root_password_remove
+fi
 if is_legacy_version && [ -d "${ROOT_MOUNTPOINT}/etc" ]; then
 	touch "${ROOT_MOUNTPOINT}/etc/.rescue-update-suggested"
 fi
