@@ -404,6 +404,7 @@ clone_uboot()
 create_gpt_partition_table()
 {
 	if ! is_gpt; then
+		UBOOT_PARTITION="${FLASH_DEVICE}boot0"
 		clone_uboot
 	fi
 	xtrap parted --script --align=optimal "${1}" -- mklabel gpt ${PARTED_ARGS}
