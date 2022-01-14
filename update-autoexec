@@ -24,6 +24,11 @@ esac
 
 LC_ALL=C grep -h ^[a-zA-Z0-9] /etc/u-boot.scr.d/*.scr >autoexec 2>/dev/null || true
 if [ -s autoexec ]; then
+	if is_gpt; then
+		sed -i "s/mmc 1:6/mmc 1:5/g" autoexec
+		safe_mount "${DATA_PARTITION}" "${DATA_MOUNTPOINT}" || info "Failed to mount '${DATA_PARTITION}' to '${DATA_MOUNTPOINT}' - Your device will still boot but bootlogo and resolution may wrong/missing"
+		cp autoexec /data/autoexec.txt
+	fi
 	mkimage -A $arch -O linux -T script -C none -n autoexec -d autoexec /boot/autoexec.img.tmp
 	mv /boot/autoexec.img.tmp /boot/autoexec.img
 else
