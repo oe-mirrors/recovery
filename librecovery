@@ -429,10 +429,10 @@ create_bootmenu()
 	echo "fb_size=1080,300" >> $bootconfig
 	echo "[Dreambox Image]" >> $bootconfig
 	echo "cmd=ext4load mmc 1:5 1080000 /boot/kernel.img;bootm;" >> $bootconfig
-	echo "arg=" >> $bootconfig
+	echo "arg=\${bootargs}" >> $bootconfig
 	echo "[Dreambox Recovery]" >> $bootconfig
-	echo 'cmd=imgread kernel recovery ${loadaddr} 0; bootm ${loadaddr};' >> $bootconfig
-	echo "arg=" >> $bootconfig
+	echo "cmd=imgread kernel recovery \${loadaddr} 0; bootm \${loadaddr};" >> $bootconfig
+	echo "arg=\${bootargs}" >> $bootconfig
 }
 
 create_tarball()
