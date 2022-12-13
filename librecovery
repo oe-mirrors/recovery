@@ -182,7 +182,7 @@ is_beneath_directory()
 
 is_gpt()
 {
-	PARTITION_TABLE=`parted $FLASH_DEVICE print | grep Partition | awk '{print $3}'`
+	PARTITION_TABLE=`parted $FLASH_DEVICE print 2>&1 | grep Partition | awk '{print $3}'`
 	[ $PARTITION_TABLE = "gpt" ]
 }
 
