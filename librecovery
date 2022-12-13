@@ -402,6 +402,8 @@ create_partition_table()
 
 clone_uboot()
 {
+	[ -e /dev/${UBOOT_PARTITION_LEGACY} ] || abort "No legacy u-boot partition found (${UBOOT_PARTITION_LEGACY})!"
+	[ -e /dev/${UBOOT_PARTITION} ] || abort "No u-boot partition found (${UBOOT_PARTITION})!"
 	write_lba "${UBOOT_PARTITION_LEGACY}" "${UBOOT_PARTITION}" 0
 }
 
