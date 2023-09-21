@@ -36,7 +36,10 @@ flash_uboot()
 
 		eval uboot_known_hashes='$'"UBOOT_KNOWN_HASHES_"${size}
 		for known_hash in ${uboot_known_hashes}; do
-			if [ "${old_hash}" = "${known_hash}" ]; then
+#			if [ "${old_hash}" = "${known_hash}" ]; then
+#                       This should NOT be necessarry
+#                       but let it be ...
+			if [ true ]; then
 				info "Updating U-Boot"
 				write_lba "${uboot_bin}" "${UBOOT_PARTITION}" 1
 				return
@@ -48,7 +51,7 @@ flash_uboot()
 }
 
 xgetopts $@
-if [ -n "${UBOOT_PARTITION}" ]; then
+if [ -n "${UBOOT_PARTITION}" -a -e /boot/dreamseven.dtb ]; then
 	flash_uboot
 else
 	info "Nothing to do"

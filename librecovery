@@ -91,6 +91,14 @@ librecovery_init()
 				bm66BBY04fEfLFwTCNuLVhkQdX9hm8DtqHHOoi9ROXND/fMKH0C+xQqgFPz6TAVXXK6P5x5k4OhE
 				nwrEp6pVYVgJaWwrjjrPXLUxCF0Z5SvY6kQbY1Q/8F9fmWHMYISEl2QEYNFhCg==
 			"
+			UBOOT_KNOWN_SIZES="1652736 1655296"
+			UBOOT_KNOWN_HASHES_1652736=" \
+			        1938acdc29f2639f9b8bafc13ecb43c3d0c065ee3768b64b285d7d911ce1597d \
+			        c1c8f9a48b573198bc498698bc9c44eef5d0394bb84bb37ef59195853d012b1f \
+			"
+			UBOOT_KNOWN_HASHES_1655296=" \
+        			430990893f1de7984a017767ab6bc4a9086ed429a45d15930ace1773914c7fda \
+			"
 			;;
 		two)
 			RECOVERY_KEY="
@@ -102,6 +110,16 @@ librecovery_init()
 				IeWW8gpJZ7rJKbsAMgK8kcFcAwEIB4h4BBgWCAAgFiEEs51t5UgCNC6ib8sWw2DRqxVPUwwFAl44
 				N/QCGwwACgkQw2DRqxVPUww5xwEA5VKZFPtJvHJDgbVlq1JaoVwJlOEwSUqf98bdGF8xgyYBAOpb
 				xmIzYBiNvwwgAWvVc6Di8fkwhnP4mJlxsUoWMSsN
+			"
+			UBOOT_KNOWN_SIZES="2051072 2054656 2053632"
+			UBOOT_KNOWN_HASHES_2051072=" \
+				601f2ae8f4e94d0fbc46eb00f95d38bcf24eb9909e10dbd43ca8a262ccfcf139 \
+			"
+			UBOOT_KNOWN_HASHES_2054656=" \
+				aa50e1ca29a346d1d6d31ffe65b652bcb6c3f26c264cdcc8eeb88792c702dc2b \
+			"
+			UBOOT_KNOWN_HASHES_2053632=" \
+        			440f04db79e5b16a188618610382ea76ad409547e911760ff24211b6af93f9e4 \
 			"
 			;;
 		seven)
@@ -134,7 +152,9 @@ librecovery_init()
 							mkpart primary ext4 8GiB 10GiB
 							name 5 dreambox-rootfs
 							mkpart primary ext4 10GiB 12GiB
-							name 6 dreambox-rootfs-1"
+							name 6 dreambox-rootfs1
+							mkpart primary ext4 12GiB 14GiB
+							name 7 dreambox-rootfs2"
 			;;
 	esac
 
@@ -182,33 +202,51 @@ is_beneath_directory()
 
 is_gpt()
 {
-	PARTITION_TABLE=`parted $FLASH_DEVICE print 2>&1 | grep Partition | awk '{print $3}'`
-	[ $PARTITION_TABLE = "gpt" ]
+	PARTITION_SIZE=`cat /proc/partitions | grep mmcblk0p1 | awk '{print $3}'`
+	if [ ${PARTITION_SIZE} -eq 114688 ]; then
+		true
+		return
+	else
+		false
+		return
+        fi
 }
 
 is_gpt_uboot()
 {
-	case "$MACHINE" in
-		one|two|seven)
-			;;
-		*)
-			false
-			return
-			;;
-	esac
+	librecovery_init
+	set_device_paths
+	if is_gpt; then
+		true
+		return
+        else
+                if [ ! -e ${UBOOT_PARTITION_LEGACY} ]; then
+			# can not check - then better say no
+                	false
+                	return
+        	fi
+	fi
 
-	local bad_uboot_sizes="1652736 1655296"
-
-	for size in ${bad_uboot_sizes}; do
-		local bl_hash=$(dd "if=${UBOOT_PARTITION}" "bs=$((${size} + 512))" count=1 2>/dev/null | dd skip=1 2>/dev/null | sha256sum | awk '{print $1}')
-		case "$bl_hash" in
-			1938acdc29f2639f9b8bafc13ecb43c3d0c065ee3768b64b285d7d911ce1597d|c1c8f9a48b573198bc498698bc9c44eef5d0394bb84bb37ef59195853d012b1f|430990893f1de7984a017767ab6bc4a9086ed429a45d15930ace1773914c7fda)
-				false
+        case "$MACHINE" in                                                     
+                one|two|seven)                                                 
+                        ;;                                                     
+                *)                                                             
+                        false                         
+                        return            
+                        ;;    
+        esac         
+	for size in ${UBOOT_KNOWN_SIZES}; do
+		local old_hash=$(dd "if=${UBOOT_PARTITION}" "bs=$((${size} + 512))" count=1 2>/dev/null | dd skip=1 2>/dev/null | sha256sum | awk '{print $1}')
+		# only env works in source librecovery
+		eval uboot_known_hashes='$'"UBOOT_KNOWN_HASHES_"${size}
+		for known_hash in ${uboot_known_hashes}; do
+			if [ "${old_hash}" = "${known_hash}" ]; then
+				true
 				return
-				;;
-		esac
+			fi
+		done
 	done
-	true
+	false
 }
 
 is_blockdev()
@@ -402,8 +440,8 @@ create_partition_table()
 
 clone_uboot()
 {
-	[ -e /dev/${UBOOT_PARTITION_LEGACY} ] || abort "No legacy u-boot partition found (${UBOOT_PARTITION_LEGACY})!"
-	[ -e /dev/${UBOOT_PARTITION} ] || abort "No u-boot partition found (${UBOOT_PARTITION})!"
+	[ -e ${UBOOT_PARTITION_LEGACY} ] || abort "No legacy u-boot partition found (${UBOOT_PARTITION_LEGACY})!"
+	[ -e ${UBOOT_PARTITION} ] || abort "No u-boot partition found (${UBOOT_PARTITION})!"
 	write_lba "${UBOOT_PARTITION_LEGACY}" "${UBOOT_PARTITION}" 0
 }
 
@@ -414,7 +452,9 @@ create_gpt_partition_table()
 		clone_uboot
 	fi
 	xtrap parted --script --align=optimal "${1}" -- mklabel gpt ${PARTED_ARGS}
-	set_device_paths
+	set_device_paths 
+        create_filesystem "${ROOT_NAME}1" "${ROOT_PARTITION}1"
+        create_filesystem "${ROOT_NAME}2" "${ROOT_PARTITION}2"
 }
 
 
@@ -885,6 +925,15 @@ root_password_remove()
 		xchroot ${ROOT_MOUNTPOINT} /usr/bin/passwd -d root || abort "Failed to remove root password protection"
 		info "Root password protection removed."
 	fi
+}
+
+try_mount_data()
+{
+	local device="/dev/dreambox-data"
+	if [ ! -b "${device}" ]; then
+		device="/dev/disk/by-partlabel/dreambox-data"
+	fi
+	[ -b ${device} ] && (mountpoint -q /data || (mkdir -p /data && mount -o ro ${device} /data))
 }
 
 librecovery_init
