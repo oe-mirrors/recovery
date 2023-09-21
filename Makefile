@@ -18,7 +18,7 @@ override CFLAGS := $(CFLAGS) $(autoflashd_CFLAGS) -Wall -std=c99
 override CPPFLAGS := $(CPPFLAGS) -D_DEFAULT_SOURCE -DNDEBUG
 
 SCRIPTS := apt-diff backup-settings backup-tarball \
-           fbscaled flash-fsbl flash-kernel \
+           fbscaled flash-fsbl force-fsbl flash-kernel \
            flash-rescue flash-tarball help librecovery \
            restore-settings run-recovery \
            update-autoexec update-rescue

@@ -647,6 +647,9 @@ create_keyring_for_uri()
 		*dreamboxupdate.com/opendreambox/2.6/*/*/*)
 			create_keyring "${KEY_PYRO}"
 			;;
+		*source.mynonpublic.com/dreambox/*)
+			create_keyring "${KEY_PYRO}"
+			;;
 		*)
 			create_keyring "${RECOVERY_KEY}"
 			;;

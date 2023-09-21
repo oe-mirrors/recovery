@@ -2,10 +2,9 @@
 #
 # Copyright (C) 2016 Dream Property GmbH
 #
-
 source librecovery
-
-URI="http://dreamboxupdate.com/download/recovery/${MACHINE}/release/rescue-image-${MACHINE}.bin"
+#URI="http://dreamboxupdate.com/download/recovery/${MACHINE}/release/rescue-image-${MACHINE}.bin"
+URI="https://source.mynonpublic.com/dreambox/dreambox-rescue-image-dreambox-20230508.bootimg"
 
 usage()
 {
@@ -35,7 +34,8 @@ create_keyring_for_uri "${URI}"
 BASE_URI="$(dirname ${URI})"
 FILENAME="$(basename ${URI})"
 
-fetch_signed "${BASE_URI}" "${FILENAME}"
+#fetch_signed "${BASE_URI}" "${FILENAME}"
+fetch "${BASE_URI}" "${FILENAME}"
 info "Writing rescue image to flash"
 xtrap flash-rescue "${FILENAME}"
 info "Done."
