@@ -10,7 +10,8 @@ case "${MACHINE}" in
 		DEVICETREE=/boot/dream${MACHINE}.dtb
 		CMDLINE=
 		INITRD=
-		OPTSTRING="c:d:hi:qtv"
+		OFGROOT=
+		OPTSTRING="r:c:d:hi:qtv"
 		;;
 esac
 
@@ -56,7 +57,7 @@ create_bootimg()
 	if is_empty "${CMDLINE}"; then
 		mkbootimg ${ARGS} >&3 2>&4
 	else
-		if is_gpt; then
+		if is_gpt && [ -z "$OFGROOT" ]; then
 			CMDLINE=$(echo ${CMDLINE} | sed -e "s/mmcblk0p7/${CMDLINE_ROOTFS}/g")
 		fi
 		info "Kernel command-line: ${CMDLINE}"
@@ -78,7 +79,7 @@ write_blob()
 
 usage()
 {
-	echo "Usage: ${0} [-hqtv] [-c <cmdline>] [-d <devicetree>] [-i <initrd>] <vmlinux.bin>"
+	echo "Usage: ${0} [-hqtv] [-c <cmdline>] [-d <devicetree>] [-i <initrd>] [-r <OFGROOT>] <vmlinux.bin>"
 	echo "       Default: -d ${DEVICETREE}"
 	exit ${1}
 }
@@ -103,6 +104,9 @@ while getopts ${OPTSTRING} opt; do
 		o)
 			OPTION="${OPTARG}"
 			;;
+		r)
+			OFGROOT="${OPTARG}"
+			;;
 	esac
 	std_opt "${opt}"
 done
@@ -122,7 +126,7 @@ case "${MACHINE}" in
 	one|two|seven)
 		create_workspace
 		if is_gpt; then
-			create_bootimg "/boot/kernel.img" || abort "Failed to create boot image"
+			create_bootimg "${OFGROOT}/boot/kernel.img" || abort "Failed to create boot image"
 		else
 			create_bootimg bootblob.bin || abort "Failed to create boot image"
 			is_file_size_le bootblob.bin "${KERNEL_SIZE}" || abort "Boot image is too big"
