@@ -1,0 +1,51 @@
+#!/bin/sh
+#
+# Copyright (C) 2019 Dream Property GmbH
+#
+
+source librecovery
+
+case "${MACHINE}" in
+	one|two|seven)
+		DEVICETREE=/boot/dream${MACHINE}.dtb
+		OPTSTRING="d:h"
+		;;
+esac
+
+usage()
+{
+	echo "Usage: ${0} [-h] [-d <devicetree>]"
+	echo "       Default: -d ${DEVICETREE}"
+	exit ${1}
+}
+
+while getopts ${OPTSTRING} opt; do
+	case "${opt}" in
+		d)
+			DEVICETREE="${OPTARG}"
+			;;
+	esac
+	std_opt "${opt}"
+done
+
+shift $((${OPTIND} - 1))
+[ "$#" != 1 ] || usage 1 
+DTB=`xrealpath ${DEVICETREE}`
+
+info "flashing ${DEVICETREE}"
+
+! is_empty "${DTB}" || abort "No dtb given"
+is_readable_file "${DEVICETREE}" || abort "Cannot access '${DEVICETREE}'"
+is_file_size_le "${DTB}" "${DTB_SIZE}" || abort "dtb is too big"
+is_writable_chardev "${DTB_DEVICE}" || abort "Target device '${DTB_DEVICE}' is not writable"
+
+case "${MACHINE}" in
+	one|two|seven)
+		create_workspace
+		if is_gpt; then
+			abort "${DTB_DEVICE} is not used with GPT"
+		else
+			write_dtb "${DTB}" "${DTB_DEVICE}" || abort "Failed to flash {DEVICETREE} to ${DTB_DEVICE}"
+		fi
+		;;
+esac

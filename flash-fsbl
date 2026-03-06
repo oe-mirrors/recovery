@@ -5,6 +5,25 @@
 
 source librecovery
 
+usage()
+{
+	echo "Usage: ${0} [-f]"
+	exit "${1}"
+}
+
+FORCE=false
+while getopts fhqtv opt; do
+	case "${opt}" in
+		f)
+			FORCE=true
+			;;
+	esac
+	std_opt "${opt}"
+done
+
+shift $((${OPTIND} - 1))
+[ "$#" -le 1 ] || usage 1
+
 flash_uboot()
 {
 	local pkgdatadir="/usr/share/u-boot-bin/dream${MACHINE}"
@@ -36,10 +55,16 @@ flash_uboot()
 
 		eval uboot_known_hashes='$'"UBOOT_KNOWN_HASHES_"${size}
 		for known_hash in ${uboot_known_hashes}; do
-			if [ "${old_hash}" = "${known_hash}" ]; then
+                        if [ "${old_hash}" = "${known_hash}" ]; then  
 				info "Updating U-Boot"
 				write_lba "${uboot_bin}" "${UBOOT_PARTITION}" 1
 				return
+                        else
+			   if $FORCE; then
+				info "Updating U-Boot was forced"
+				write_lba "${uboot_bin}" "${UBOOT_PARTITION}" 1
+				return
+ 			   fi
 			fi
 		done
 	done

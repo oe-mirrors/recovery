@@ -1,3 +1,4 @@
+#!/bin/sh
 #
 # Copyright (C) 2019 Dream Property GmbH
 #
@@ -13,6 +14,9 @@ LEGACY=false
 PARTITION_TABLE=
 MOUNTPOINTS=
 WORKSPACE=
+FEED_SERVER="dreamboxupdate.com"
+IMAGENO=""
+BOOTEDNO=""
 
 set -e
 
@@ -93,11 +97,11 @@ librecovery_init()
 			"
 			UBOOT_KNOWN_SIZES="1652736 1655296"
 			UBOOT_KNOWN_HASHES_1652736=" \
-			        1938acdc29f2639f9b8bafc13ecb43c3d0c065ee3768b64b285d7d911ce1597d \
-			        c1c8f9a48b573198bc498698bc9c44eef5d0394bb84bb37ef59195853d012b1f \
+				1938acdc29f2639f9b8bafc13ecb43c3d0c065ee3768b64b285d7d911ce1597d \
+				c1c8f9a48b573198bc498698bc9c44eef5d0394bb84bb37ef59195853d012b1f \
 			"
 			UBOOT_KNOWN_HASHES_1655296=" \
-        			430990893f1de7984a017767ab6bc4a9086ed429a45d15930ace1773914c7fda \
+				430990893f1de7984a017767ab6bc4a9086ed429a45d15930ace1773914c7fda \
 			"
 			;;
 		two)
@@ -119,7 +123,7 @@ librecovery_init()
 				aa50e1ca29a346d1d6d31ffe65b652bcb6c3f26c264cdcc8eeb88792c702dc2b \
 			"
 			UBOOT_KNOWN_HASHES_2053632=" \
-        			440f04db79e5b16a188618610382ea76ad409547e911760ff24211b6af93f9e4 \
+				440f04db79e5b16a188618610382ea76ad409547e911760ff24211b6af93f9e4 \
 			"
 			;;
 		seven)
@@ -134,12 +138,12 @@ librecovery_init()
 	case "$MACHINE" in
 		one|two|seven)
 			FLASH_DEVICE="/dev/mmcblk0"
+			DTB_DEVICE="/dev/dtb"
 			FILESYSTEM="ext4"
-
 			set_device_paths || abort "Device path setup failed!"
-
 			UBOOT_SIZE=$((4 * 1024 * 1024))
 			KERNEL_SIZE=$((32 * 1024 * 1024))
+			DTB_SIZE=$((256 * 1024))
 			RESCUE_SIZE=$((32 * 1024 * 1024))
 			PARTED_ARGS="mkpart primary ext4 4MB 116MiB
 							name 1 u-boot-reserved
@@ -147,14 +151,16 @@ librecovery_init()
 							name 2 u-boot-env
 							mkpart primary ext4 132MiB 256MiB
 							name 3 recovery
-							mkpart primary ext4 256MiB 8GiB
+							mkpart primary ext4 256MiB 6713MiB
 							name 4 dreambox-data
-							mkpart primary ext4 8GiB 10GiB
+							mkpart primary ext4 6713MiB 8761MiB
 							name 5 dreambox-rootfs
-							mkpart primary ext4 10GiB 12GiB
+							mkpart primary ext4 8761MiB 10809MiB
 							name 6 dreambox-rootfs1
-							mkpart primary ext4 12GiB 14GiB
-							name 7 dreambox-rootfs2"
+							mkpart primary ext4 10809MiB 12857MiB
+							name 7 dreambox-rootfs2
+							mkpart primary ext4 12857MiB 14905MIB
+							name 8 dreambox-rootfs3"
 			;;
 	esac
 
@@ -172,7 +178,8 @@ set_device_paths()
 		PART_ROOT="/dev/disk/by-partlabel"
 		KERNEL_PARTITION="/dev/null"
 		UBOOT_PARTITION="${FLASH_DEVICE}boot0"
-		CMDLINE_ROOTFS="mmcblk0p5"
+#		CMDLINE_ROOTFS="mmcblk0p5"
+		CMDLINE_ROOTFS="`readlink -n /dev/disk/by-partlabel/dreambox-rootfs | cut -b 7-15`"
 	else
 		info "legacy"
 		PART_ROOT="/dev"
@@ -202,39 +209,52 @@ is_beneath_directory()
 
 is_gpt()
 {
-	PARTITION_SIZE=`cat /proc/partitions | grep mmcblk0p1 | awk '{print $3}'`
-	if [ ${PARTITION_SIZE} -eq 114688 ]; then
-		true
-		return
+	# calling parted at this point, like we did before would mess up the partition list for further actions
+	# because dreambox one/two have an identical parition layout this is perfectly fine (but only for one/two)
+	if [ -e /dev/mmcblk0p1 ]; then
+		PARTITION_SIZE=`cat /proc/partitions | grep mmcblk0p1 | awk '{print $3}'`
+		if [ ${PARTITION_SIZE} -eq 114688 ]; then
+			true
+			return
+		else
+			false
+			return
+		fi
 	else
 		false
 		return
-        fi
+	fi
 }
 
 is_gpt_uboot()
 {
 	librecovery_init
 	set_device_paths
-	if is_gpt; then
-		true
-		return
-        else
-                if [ ! -e ${UBOOT_PARTITION_LEGACY} ]; then
-			# can not check - then better say no
-                	false
-                	return
-        	fi
+	p=`readlink -n /dev/disk/by-partlabel/dreambox-rootfs | cut -d"p" -f 2`
+        if is_gpt; then                                                   
+		# check if running on default root
+                if [ $p -ne 5 ]; then                                     
+                        false                                             
+                else                                                      
+                        true         
+                fi                   
+                return   
+	else
+		if [ ! -e ${UBOOT_PARTITION_LEGACY} ]; then
+		# can not check - then better say no
+			false
+			return
+		fi
 	fi
 
-        case "$MACHINE" in                                                     
-                one|two|seven)                                                 
-                        ;;                                                     
-                *)                                                             
-                        false                         
-                        return            
-                        ;;    
-        esac         
+	case "$MACHINE" in
+		one|two|seven)
+			;;
+		*)
+			false
+			return
+			;;
+	esac
 	for size in ${UBOOT_KNOWN_SIZES}; do
 		local old_hash=$(dd "if=${UBOOT_PARTITION}" "bs=$((${size} + 512))" count=1 2>/dev/null | dd skip=1 2>/dev/null | sha256sum | awk '{print $1}')
 		# only env works in source librecovery
@@ -318,6 +338,12 @@ is_initrd()
 {
 	is_file "/etc/initrd-release"
 }
+
+is_rescue()
+{
+	[  "${1##*.}" != "bootimg" ]
+}
+
 
 is_nfsroot()
 {
@@ -415,9 +441,96 @@ write_nand()
 	xtrap nandwrite -p -m "${1}" "${2}"
 }
 
+check_latest_fp()
+{
+FPV=`cat /proc/stb/fp/fp_version`
+if [ $MACHINE == "two" -a $FPV == "1.14" ]; then
+	true
+	return
+fi
+if [ $MACHINE == "one" -a $FPV == "1.15" ]; then
+	true
+	return
+fi
+false
+}
+
+check_latest_bootloader()
+{
+if [ $MACHINE == "two" ]; then
+   UBOOT_GOOD_SIZE="2053632"
+   UBOOT_GOOD_HASH="440f04db79e5b16a188618610382ea76ad409547e911760ff24211b6af93f9e4"
+   current_hash=$(dd "if=${UBOOT_PARTITION}" "bs=$((${UBOOT_GOOD_SIZE} + 512))" count=1 2>/dev/null | dd skip=1 2>/dev/null | sha256sum | awk '{print $1}')
+   # echo $current_hash
+   if [ $current_hash==$UBOOT_GOOD_HASH ]; then
+	true
+	return
+   fi
+fi
+if [ $MACHINE == "one" ]; then
+   UBOOT_GOOD_SIZE="1655296"
+   UBOOT_HASHES_1652736=" \
+        1938acdc29f2639f9b8bafc13ecb43c3d0c065ee3768b64b285d7d911ce1597d \
+        c1c8f9a48b573198bc498698bc9c44eef5d0394bb84bb37ef59195853d012b1f \
+"
+   UBOOT_GOOD_HASH="430990893f1de7984a017767ab6bc4a9086ed429a45d15930ace1773914c7fda"
+   current_hash=$(dd "if=${UBOOT_PARTITION}" "bs=$((${UBOOT_GOOD_SIZE} + 512))" count=1 2>/dev/null | dd skip=1 2>/dev/null | sha256sum | awk '{print $1}')
+   # echo $current_hash
+   if [ $current_hash==$UBOOT_GOOD_HASH ]; then
+	true
+	return
+   fi
+fi
+false
+}
+
+format_filesystems() {
+FILESYSTEMS="${1} ${2} ${3} ${4} ${5} ${6}"
+
+#info "Formating Filesystems: ${FILESYSTEMS}"
+
+for filesystem in ${FILESYSTEMS}; do                                       
+   if [ -e "/dev/disk/by-partlabel/${filesystem}" ]; then                               
+      info "Formatting $filesystem ..."
+      create_filesystem "${filesystem}" "/dev/disk/by-partlabel/${filesystem}"
+      if [ "${filesystem}" = "dreambox-rootfs" ]; then                               
+	 warn "you will have to flash a new image, because you formated dreambox-rootfs"
+      fi 
+      if [ "${filesystem}" = "dreambox-data" ]; then                               
+	 safe_mount "${DATA_PARTITION}" "${DATA_MOUNTPOINT}" || abort "Failed to mount data filesystem"
+         create_directory "${RECOVERY_CACHE}"
+	 if is_gpt; then
+	    create_bootmenu 1 2 3 4
+         fi
+	 unmount "${DATA_MOUNTPOINT}" || warn "Failed to unmount ${DATA_MOUNTPOINT}"
+      fi 
+   else
+      if [ -e "/dev/${filesystem}" ]; then                               
+         info "Formatting $filesystem ..."
+         create_filesystem "${filesystem}" "/dev/${filesystem}"
+         if [ "${filesystem}" = "dreambox-rootfs" ]; then                               
+	    warn "you will have to flash a new image, because you formated dreambox-rootfs"
+         fi 
+         if [ "${filesystem}" = "dreambox-data" ]; then                               
+	    safe_mount "${DATA_PARTITION}" "${DATA_MOUNTPOINT}" || abort "Failed to mount data filesystem"
+            create_directory "${RECOVERY_CACHE}"
+	    if is_gpt; then
+	       create_bootmenu 1 2 3 4
+            fi
+	 unmount "${DATA_MOUNTPOINT}" || warn "Failed to unmount ${DATA_MOUNTPOINT}"
+         fi 
+      fi 
+   fi 
+done
+info "Done"
+}
+
 create_partition_table()
 {
-	info "Creating partition table"
+	check_latest_fp || abort "outdated frontprocessor, upgdate then try again!"
+	check_latest_bootloader || abort "outdated bootloader, update then try again!"
+
+   	info "Creating partition table"
 	if is_gpt_uboot; then
 		if $2; then
 			info "Creating GPT for multiboot u-boot"
@@ -445,6 +558,56 @@ clone_uboot()
 	write_lba "${UBOOT_PARTITION_LEGACY}" "${UBOOT_PARTITION}" 0
 }
 
+select_gpt_partition()
+{
+	if ! is_gpt; then
+		abort "No GPT found, selecting Root Partition is not possible"
+	fi
+	if [ $# == 0 ]; then
+	   NEW_ROOT="../../mmcblk0p5"
+  	   info "Default Root partition ${ROOT_PARTITION} selected!"
+	   ln -snf "${NEW_ROOT}" "${PART_ROOT}/${ROOT_NAME}"
+        else
+           if [ -e "${ROOT_PARTITION}${1}" ]; then
+	      NEW_ROOT=`readlink ${ROOT_PARTITION}${1}`
+    	      info "Root partition ${ROOT_PARTITION}${1} selected!"
+	      ln -snf "${NEW_ROOT}" "${PART_ROOT}/${ROOT_NAME}"
+           else
+   	      NEW_ROOT="../../mmcblk0p5"
+  	      info "Default Root partition ${ROOT_PARTITION} selected!"
+	      ln -snf "${NEW_ROOT}" "${PART_ROOT}/${ROOT_NAME}"
+           fi
+        fi
+}
+
+booted_gpt_image()
+{
+BOOTEDNO=0
+if is_gpt; then
+	cmd=`cat /proc/cmdline`
+	for arg in $cmd; do
+	    if [[ $arg == root\=/dev/mmcblk0p* ]]; then
+	    	b=`echo $arg | cut -b 19`
+	        if [ $b -ne 5 ]; then
+	            BOOTEDNO=$(expr $b '-' 5)
+	        fi
+	    fi
+	done
+fi
+#info "Booted image: #${BOOTEDNO}"
+}
+
+selected_gpt_image()
+{
+dIMAGENO=""
+p=`readlink -n /dev/disk/by-partlabel/dreambox-rootfs | cut -d"p" -f 2`
+if is_gpt; then
+        if [ $p -gt 5 ]; then
+                IMAGENO="$(expr $p '-' 5)"
+        fi
+fi
+}
+
 create_gpt_partition_table()
 {
 	if ! is_gpt; then
@@ -452,33 +615,94 @@ create_gpt_partition_table()
 		clone_uboot
 	fi
 	xtrap parted --script --align=optimal "${1}" -- mklabel gpt ${PARTED_ARGS}
-	set_device_paths 
-        create_filesystem "${ROOT_NAME}1" "${ROOT_PARTITION}1"
-        create_filesystem "${ROOT_NAME}2" "${ROOT_PARTITION}2"
+	set_device_paths
+
+        # just in case ...
+        unmount_cache
+        if [ -e "${DATA_PARTITION}" ]; then
+	   create_filesystem "${DATA_NAME}" "${DATA_PARTITION}"
+        fi
+        if [ -e "${ROOT_PARTITION}1" ]; then
+	   create_filesystem "${ROOT_NAME}1" "${ROOT_PARTITION}1"
+        fi
+        if [ -e "${ROOT_PARTITION}2" ]; then
+	   create_filesystem "${ROOT_NAME}2" "${ROOT_PARTITION}2"
+        fi
+        if [ -e "${ROOT_PARTITION}3" ]; then
+           create_filesystem "${ROOT_NAME}3" "${ROOT_PARTITION}3"
+        fi
+        if [ -e "${ROOT_PARTITION}4" ]; then
+           create_filesystem "${ROOT_NAME}4" "${ROOT_PARTITION}4"
+        fi
+        if [ -e "${ROOT_PARTITION}5" ]; then
+           create_filesystem "${ROOT_NAME}5" "${ROOT_PARTITION}5"
+        fi
+        if [ -e "${ROOT_PARTITION}6" ]; then
+           create_filesystem "${ROOT_NAME}6" "${ROOT_PARTITION}6"
+        fi
+        if [ -e "${ROOT_PARTITION}7" ]; then
+           create_filesystem "${ROOT_NAME}7" "${ROOT_PARTITION}7"
+        fi
+        if [ -e "${ROOT_PARTITION}8" ]; then
+           create_filesystem "${ROOT_NAME}8" "${ROOT_PARTITION}8"
+        fi
+        if [ -e "${ROOT_PARTITION}9" ]; then
+           create_filesystem "${ROOT_NAME}9" "${ROOT_PARTITION}9"
+        fi
 }
-
-
 
 create_bootmenu()
 {
 	if ! is_gpt; then
-		echo "No GPT found, so no bootmenu.txt is required!"
-		false;
-		return;
+		info "No GPT found, so NO bootmenu.txt is required!"
+		false
+		return
 	fi
+        # support up to 7 image entries 
+	entries="${1} ${2} ${3} ${4} ${5} ${6} ${7}"
 	safe_mount "${DATA_PARTITION}" "${DATA_MOUNTPOINT}" || abort "Failed to mount data filesystem"
 	local bootconfig="${DATA_MOUNTPOINT}/bootconfig.txt"
+	local oldbootconfig="${DATA_MOUNTPOINT}/bootconfig.old"
+        if [ -e $bootconfig ]; then 
+		info "Saving existing ${bootconfig} to ${oldbootconfig}"
+		xcp ${bootconfig} ${oldbootconfig}
+        fi
 	info "Generating '${bootconfig}'"
 	echo "details=0" > $bootconfig
-	echo "timeout=1" >> $bootconfig
+	echo "timeout=5" >> $bootconfig
+        # for calling in rescue image switched to 1,2,3,4
+	p=`readlink -n /dev/disk/by-partlabel/dreambox-rootfs | cut -d"p" -f 2`
+	info "adding Default Image ..."
+	if [ $p -ne 5 ]; then
+   		image=$(expr $p '-' 5)
+		info "Default Image #$image"
+		echo "default=$image" >> $bootconfig
+        fi
+        # for calling in booted image 1,2,3,4
+        booted_gpt_image
+	if [ $BOOTEDNO -ne 0 ]; then
+		info "Default Image #$BOOTEDNO"
+		echo "default=$BOOTEDNO" >> $bootconfig
+        fi
 	echo "fb_pos=100,400" >> $bootconfig
 	echo "fb_size=1080,300" >> $bootconfig
 	echo "[Dreambox Image]" >> $bootconfig
 	echo "cmd=ext4load mmc 1:5 1080000 /boot/kernel.img;bootm;" >> $bootconfig
 	echo "arg=\${bootargs}" >> $bootconfig
+	for x in ${entries}; do
+	   part=$(expr $x + 5)
+	   if [ -e /dev/disk/by-partlabel/dreambox-rootfs${x} ]; then
+	      info "adding Image ${x} ..."
+ 	      echo "[Dreambox Image ${x}]" >> $bootconfig
+    	      echo "cmd=ext4load mmc 1:${part} 1080000 /boot/kernel.img;bootm;" >> $bootconfig
+	      echo "arg=\${bootargs}" >> $bootconfig
+           fi
+        done
+        info "adding Recovery Image ..."
 	echo "[Dreambox Recovery]" >> $bootconfig
 	echo "cmd=imgread kernel recovery \${loadaddr} 0; bootm \${loadaddr};" >> $bootconfig
 	echo "arg=\${bootargs}" >> $bootconfig
+        info "done"
 }
 
 create_tarball()
@@ -536,7 +760,8 @@ create_tarball()
 		echo "." >include.list
 	fi
 
-	info "Creating ${tarball} from ${sysroot}"
+#	info "Creating ${tarball} from ${sysroot}"
+	info "Creating ${tarball}"
 	xtar -C "${sysroot}" ${opt} --exclude-from=exclude.list --files-from=include.list -cf "${tarball}.tmp"
 	mv "${tarball}.tmp" "${tarball}"
 }
@@ -556,7 +781,8 @@ extract_tarball()
 	local dir="${2}"
 	shift 2
 
-	info "Extracting '${tarball}' to '${dir}'"
+#	info "Extracting '${tarball}' to '${dir}'"
+	info "Extracting '${tarball}'"
 	xtar -xf "${tarball}" -C "${dir}" $@
 }
 
@@ -638,16 +864,13 @@ create_keyring_for_uri()
 	"
 
 	case "$1" in
-		*dreamboxupdate.com/opendreambox/2.2/*/${MACHINE}/*)
+		*${FEED_SERVER}/opendreambox/2.2/*/${MACHINE}/*)
 			create_keyring "${KEY_DORA}"
 			;;
-		*dreamboxupdate.com/opendreambox/2.5/*/${MACHINE}/*)
+		*${FEED_SERVER}/opendreambox/2.5/*/${MACHINE}/*)
 			create_keyring "${KEY_KROGOTH}"
 			;;
-		*dreamboxupdate.com/opendreambox/2.6/*/*/*)
-			create_keyring "${KEY_PYRO}"
-			;;
-		*source.mynonpublic.com/dreambox/*)
+		*${FEED_SERVER}/opendreambox/2.6/*/*/*)
 			create_keyring "${KEY_PYRO}"
 			;;
 		*)
@@ -659,7 +882,7 @@ create_keyring_for_uri()
 verify()
 {
 	info "Verifying signature of '${1}'"
-	gpgv -q --ignore-time-conflict "${1}.sig" "${1}" >&3 2>&4
+        gpgv -q --ignore-time-conflict "${1}.sig" "${1}" >&3 2>&4
 }
 
 files_equal()
@@ -705,7 +928,7 @@ safe_mount()
 unmount()
 {
 	if is_mountpoint "${1}"; then
-		info "Unmounting '${1}'"
+#		info "Unmounting '${1}'"
 		umount "${1}" || mount -o remount,ro "${1}"
 	fi
 }
@@ -771,7 +994,7 @@ run()
 
 run_postinsts()
 {
-	local virtfs="dev proc run sys tmp"
+	local virtfs="dev proc run sys tmp data"
 	local mountpoint=$1
 	shift
 
@@ -806,6 +1029,12 @@ write_blkdev()
 {
 	info "Writing ${1} to ${2}"
 	xdd if=${1} of=${2} bs=64K
+}
+
+write_dtb()
+{
+	info "Writing ${1} to ${2}"
+	xdda if=${1} of=${2}
 }
 
 write_lba()
@@ -861,6 +1090,12 @@ xdd()
 	xtrap dd conv=fsync $@
 }
 
+xdda()
+{
+	xtrap dd $@
+}
+
+
 xgetopts()
 {
 	local opt
@@ -894,7 +1129,8 @@ xtar_args()
 
 xtar()
 {
-	xtrap tar $(xtar_args --numeric-owner --warning=no-timestamp) $@
+#	xtrap tar $(xtar_args --numeric-owner --warning=no-timestamp) $@
+	xtrap tar $(xtar_args) $@
 }
 
 xtrap()
@@ -940,3 +1176,5 @@ try_mount_data()
 }
 
 librecovery_init
+
+selected_gpt_image

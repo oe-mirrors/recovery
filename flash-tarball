@@ -7,18 +7,19 @@ source librecovery
 
 usage()
 {
-	echo "Usage: ${0} [-bhqrtgv] <dreambox-image.tar.xz>"
+	echo "Usage: ${0} [-bhqrtmgv] <dreambox-image-${MACHINE}.tar.xz>"
 	exit ${1}
 }
 
 BACKUP_SETTINGS=":"
 RESTORE_SETTINGS=":"
 GPT_RECREATE=false
+BOOTMENU_RECREATE=false
 PASSWORT_REMOVE=false
-SETTINGS="settings.tar.gz"
+SETTINGS="settings${IMAGENO}.tar.gz"
 UPDATE_CACHE_SIGNED=":"
 
-while getopts bchqrtgpv opt; do
+while getopts bchqrtmgpv opt; do
 	case "${opt}" in
 		b)
 			BACKUP_SETTINGS="backup-settings ${SETTINGS}"
@@ -31,6 +32,9 @@ while getopts bchqrtgpv opt; do
 			;;
 		g)
 			GPT_RECREATE=true
+			;;
+		m)
+			BOOTMENU_RECREATE=true
 			;;
 		p)
 			PASSWORT_REMOVE=true
@@ -48,6 +52,10 @@ assert_rescue_mode
 DEVICE=${FLASH_DEVICE:-${ROOT_PARTITION}}
 is_writable_blockdev "${DEVICE}" || is_writable_chardev "${DEVICE}" || abort "Target device '${DEVICE}' is not writable"
 ! is_empty "${FILENAME}" || abort "No tarball filename given"
+
+if [ -e /dev/mmcblk1p2 -o -e /dev/disk/by-partlabel/DREAMBOOT ]; then
+   abort "remove bootable SD card while flashing with rescue image"
+fi
 
 case "${FILENAME}" in
 	*://*)
@@ -70,7 +78,7 @@ if [ -n "${BASE_URI}" ]; then
 	fetch_signed "${BASE_URI}" "${FILENAME}"
 fi
 
-[ ! -f "${RECOVERY_CACHE}/settings.tar.gz" ] || cp ${RECOVERY_CACHE}/settings.tar.gz ${SETTINGS}
+[ ! -f "${RECOVERY_CACHE}/${SETTINGS}" ] || cp ${RECOVERY_CACHE}/${SETTINGS} ${SETTINGS}
 if blkdev_has_filesystem "${ROOT_PARTITION}" || is_chardev "${ROOT_PARTITION}"; then
 	${BACKUP_SETTINGS}
 fi
@@ -97,6 +105,25 @@ create_filesystem "${ROOT_NAME}" "${ROOT_PARTITION}" || abort "Failed to create 
 
 safe_mount "${ROOT_PARTITION}" "${ROOT_MOUNTPOINT}" || abort "Failed to mount root filesystem"
 extract_tarball "${FILENAME}" "${ROOT_MOUNTPOINT}" || abort "Failed to extract root filesystem"
+# fix old scripts ...
+cp /usr/sbin/librecovery "${ROOT_MOUNTPOINT}/usr/sbin/librecovery"
+cp /usr/sbin/flash-kernel "${ROOT_MOUNTPOINT}/usr/sbin/flash-kernel"
+cp /usr/sbin/flash-fsbl "${ROOT_MOUNTPOINT}/usr/sbin/flash-fsbl"
+cp /usr/sbin/flash-rescue "${ROOT_MOUNTPOINT}/usr/sbin/flash-rescue"
+#cp /usr/sbin/backup-settings "${ROOT_MOUNTPOINT}/usr/sbin/backup-settings"
+# fix old feed ...
+cp /usr/sbin/run-recovery "${ROOT_MOUNTPOINT}/usr/sbin/run-recovery"
+cp /usr/sbin/recovery "${ROOT_MOUNTPOINT}/usr/sbin/recovery"
+cp /usr/sbin/update-rescue "${ROOT_MOUNTPOINT}/usr/sbin/update-rescue"
+# fix Open issues ...
+if [ ! -e "${ROOT_MOUNTPOINT}/usr/bin/mkbootimg" ]; then
+   cp /usr/bin/mkbootimg "${ROOT_MOUNTPOINT}/usr/bin/mkbootimg"
+   cp /usr/sbin/to-the-rescue "${ROOT_MOUNTPOINT}/usr/sbin/to-the-rescue"
+fi
+# add new stuff ...
+#cp /usr/sbin/bootmenu "${ROOT_MOUNTPOINT}/usr/sbin/bootmenu"
+#cp /usr/sbin/bootlogo "${ROOT_MOUNTPOINT}/usr/sbin/bootlogo"
+#
 run_postinsts "${ROOT_MOUNTPOINT}" ${POSTINSTS} || abort "Failed to run postinst scripts"
 ${RESTORE_SETTINGS}
 if $PASSWORT_REMOVE; then
@@ -105,7 +132,7 @@ fi
 if is_legacy_version && [ -d "${ROOT_MOUNTPOINT}/etc" ]; then
 	touch "${ROOT_MOUNTPOINT}/etc/.rescue-update-suggested"
 fi
-if $GPT_RECREATE; then
+if $GPT_RECREATE || $BOOTMENU_RECREATE; then
 	create_bootmenu
 fi
 unmount "${ROOT_MOUNTPOINT}" || warn "Failed to unmount root filesystem"
@@ -114,4 +141,4 @@ unmount "${ROOT_MOUNTPOINT}" || warn "Failed to unmount root filesystem"
 [ -z "${BASE_URI}" ] || ${UPDATE_CACHE_SIGNED} "${FILENAME}"
 unmount_cache
 
-info "Finished successfully. You may reboot now."
+info "Image Flashing successfully. You may reboot now."

@@ -1,0 +1,322 @@
+#!/bin/sh
+#
+# Copyright (C) 2020 Dream Property GmbH
+#
+source librecovery
+
+FIP="/usr/share/amlogic-boot-bin/dream${MACHINE}/fip.bin"
+RESCUE=false
+EMERGENCY=false
+GPT=false
+TMP="/tmp"
+ERASETMP=$TMP/erase
+
+usage()
+{
+	echo "Usage: ${0} [-ergh]"
+	exit 0
+}
+
+if [ $# == 0 ]; then
+	usage
+fi
+
+while getopts ergh opt; do
+	case "${opt}" in
+		e)
+			EMERGENCY=true
+			;;
+		r)
+			RESCUE=true
+			;;
+		g)
+			GPT=true
+			;;
+		h)
+			usage
+			;;
+	esac
+done
+
+if $EMERGENCY; then
+   if $RESCUE; then
+      abort "-e and -r are conflicting, use only one!"
+   fi
+fi
+
+checkCache() {
+safe_mount "${DATA_PARTITION}" "${DATA_MOUNTPOINT}" || abort "Failed to mount data filesystem!"
+create_directory "${RECOVERY_CACHE}"
+cd "${RECOVERY_CACHE}" 
+}
+
+doCleanup() {
+   if [ -e $TMP/autoexec ]; then
+      rm $TMP/autoexec
+   fi
+   if [ -e $TMP/autoexec.img ]; then
+      rm $TMP/autoexec.img 
+   fi
+   if [ -e $ERASETMP ]; then
+      rm $ERASETMP
+   fi
+}
+
+checkSD() {
+   if [ ! -e /dev/mmcblk1 ]; then
+      abort "NO SD card found"
+   else
+      info "SD card found"
+      BLOCKS=`cat /sys/class/block/mmcblk1/size`
+      SIZE=`expr $BLOCKS / 2048 / 1024` 
+	  MB_SIZE=`expr $BLOCKS / 2048`
+      info "Usable size $SIZE GB / $MB_SIZE MB"
+      if [ $BLOCKS -lt 967600 ]; then
+            abort "SD card too small, please at least 1GB."
+      fi
+      if [ $SIZE -gt 80 ]; then
+            abort "SD card too big, please maximum 64 GB."
+      fi
+   fi
+}
+
+doUmount() {
+   info "Unmounting SD card"
+   if [ `grep /tmp/FLASH /proc/mounts | wc -l` -gt 0 ]; then
+      umount /tmp/FLASH 
+   fi
+   if [ `grep /tmp/DREAMBOOT /proc/mounts | wc -l` -gt 0 ]; then
+      umount /tmp/DREAMBOOT
+   fi
+   if [ `grep /autofs/mmcblk1p1 /proc/mounts | wc -l` -gt 0 ]; then
+      umount /autofs/mmcblk1p1
+   fi
+   if [ `grep /autofs/mmcblk1p2 /proc/mounts | wc -l` -gt 0 ]; then
+      umount /autofs/mmcblk1p2
+   fi
+   if [ `grep /autofs/mmcblk1p3 /proc/mounts | wc -l` -gt 0 ]; then
+      umount /autofs/mmcblk1p3
+   fi
+}
+
+doDestroy() {
+   info "Destroying disklabel on SD card"
+   if [ -e $ERASETMP ]; then
+      rm $ERASETMP
+   fi
+   touch $ERASETMP
+   sgdisk -Z /dev/mmcblk1
+   partprobe /dev/mmcblk1
+}
+
+doFIP() {
+   if [ -e $FIP ]; then
+      info "Adding FIP binary to SD card"
+      dd if=$FIP of=/dev/mmcblk1 bs=512 count=8192
+      partprobe /dev/mmcblk1
+   fi
+}
+
+doFATPartition() {
+   touch $ERASETMP
+   info "Partitioning SD card"
+   echo "n" >> $ERASETMP
+   echo "p" >> $ERASETMP
+   echo "1" >> $ERASETMP
+   echo "8192" >> $ERASETMP
+   echo "73727" >> $ERASETMP
+   # changing DREAMBOOT Partition to FAT
+   echo "t" >> $ERASETMP
+   echo "6" >> $ERASETMP
+   echo "w" >> $ERASETMP
+#  cat $ERASETMP
+   fdisk -u -b 512 -S 512 < $ERASETMP /dev/mmcblk1
+   partprobe /dev/mmcblk1
+   #
+   # checking results
+   #
+   if [ -e /dev/mmcblk1 ]; then
+      if [ ! -e /dev/mmcblk1p1 ]; then
+            abort "/dev/mmcblk1p1 NOT found - reboot without SD card, insert and try again"
+      else
+         info "Created /dev/mmcblk1p1"
+      fi
+   fi
+}
+
+doFATFormat() {
+   if [ `grep /dev/mmcblk1p1 /proc/mounts | grep /tmp/DREAMBOOT | wc -l` -gt 0 ]; then
+      info "/dev/mmcblk1p1 formated as DREAMBOOT and already mounted"
+   else
+      info "Formating /dev/mmcblk1p1 as DREAMBOOT"
+      doUmount
+      mkfs.fat -F 16 -S 512 -v -n DREAMBOOT /dev/mmcblk1p1
+      if [ ! -e /tmp/DREAMBOOT ]; then
+         mkdir /tmp/DREAMBOOT
+      fi
+      info "Mounting /dev/mmcblk1p1 at /tmp/DREAMBOOT"
+      mount /dev/mmcblk1p1 /tmp/DREAMBOOT
+   fi
+}
+
+currentRescueImage () {                                                                
+   info "Extracting current rescue image"                                  
+   CURRENTIMG="current-image-${MACHINE}.bin"                                                 
+   create_workspace
+   CMDLINE="console=ttyS0,1000000 root=/dev/mmcblk0p7 rootwait rootfstype=ext4 no_console_suspend"
+   ROOTFS=`strings /dev/recovery | grep rootfs.cpio | cut -d . -f 1`
+   CPIOGZ="$ROOTFS.rootfs.cpio.gz"                         
+   abootimg -x /dev/recovery
+   mv zImage Image.gz
+   mv initrd.img $CPIOGZ
+   mkbootimg --base 0 --kernel_offset 0x1080000 --second_offset 0x1000000 -o $CURRENTIMG --kernel Image.gz --second /boot/dreamtwo.dtb --ramdisk $CPIOGZ --ramdisk_offset 0x4000000 --board dreambox --cmdline "$CMDLINE"
+}  
+
+copyRescueImageToDREAMBOOT () {
+    info "Copying current Rescue Image to FAT"
+    xcp $CURRENTIMG /tmp/DREAMBOOT/rescue.bootimg
+}
+
+copyBootloaderToDREAMBOOT () {
+   if [ -e /usr/share/u-boot-bin/dream${MACHINE}/u-boot.bin ]; then
+      if [ -e /tmp/DREAMBOOT/u-boot.bin ]; then
+         warn "u-boot.bin already found on sd-card"
+      else
+         info "u-boot.bin copied to sd-card"
+         xcp /usr/share/u-boot-bin/dream${MACHINE}/u-boot.bin /tmp/DREAMBOOT/u-boot.bin
+      fi
+   else
+      abort "/usr/share/u-boot-bin/dream${MACHINE}/u-boot.bin NOT found"
+   fi
+}
+
+copyDtbToDREAMBOOT () {
+   if [ -e /boot/dream${MACHINE}.dtb  ]; then
+      if [ -e /tmp/DREAMBOOT/dream${MACHINE}.dtb ]; then
+         warn "dream${MACHINE}.dtb already found on SD card"
+      else
+         info "dream${MACHINE}.dtb copied to sd-card"
+         xcp /boot/dream${MACHINE}.dtb /tmp/DREAMBOOT/dream${MACHINE}.dtb
+      fi
+   else
+      abort "dream${MACHINE}.dtb NOT found"
+   fi
+}
+
+copyGptToDREAMBOOT () {
+   if [ $GPT ]; then
+	if is_gpt; then
+           info "dream${MACHINE} GPT copied to sd-card"
+	   sfdisk -d ${FLASH_DEVICE} > /tmp/DREAMBOOT/dream${MACHINE}.gpt
+	else
+           warn "dream${MACHINE} not GPT partitioned"
+	fi
+   fi
+}
+
+doRescue() {
+   info "Creating Rescue SD"
+   doCleanup
+   checkSD
+   checkCache
+   currentRescueImage
+   doUmount
+   doFIP 
+   doDestroy
+   doFATPartition
+   doFATFormat
+   copyRescueImageToDREAMBOOT
+   copyDtbToDREAMBOOT
+   copyBootloaderToDREAMBOOT
+   copyGptToDREAMBOOT
+   info "Creating autoexec.img for rescue sd-card"
+   echo "fatload mmc 0:1 \${dtb_mem_addr} dream${MACHINE}.dtb" >> $TMP/autoexec
+   echo "setenv bootcmd \"fatload mmc 0:1 \${loadaddr} rescue.bootimg; bootm;\"" >> $TMP/autoexec
+#  cat $TMP/autoexec
+   mkimage -A arm64 -O linux -T script -C none -n autoexec -d $TMP/autoexec $TMP/autoexec.img
+   rm $TMP/autoexec
+   if [ -e $TMP/autoexec.img ]; then
+      info "Copying autoexec.img to Rescue SD"
+      cp $TMP/autoexec.img /tmp/DREAMBOOT/autoexec.img
+      rm $TMP/autoexec.img 
+   else
+      abort "Creating rescue autoexec.img failed"
+   fi
+   showResult
+   doFinish
+   doCleanup
+}
+
+doEmergency() {
+   info "Creating Emergency SD"
+   doCleanup
+   checkSD
+   checkCache
+   currentRescueImage
+   doUmount
+   doFIP 
+   doDestroy
+   doFATPartition
+   doFATFormat
+   copyRescueImageToDREAMBOOT
+   copyDtbToDREAMBOOT
+   copyBootloaderToDREAMBOOT
+   copyGptToDREAMBOOT
+   info "Creating autoexec.img for emergency sd-card"
+   echo "" >> $TMP/autoexec 
+   echo "################ Device-Tree RECOVERY ######################" >> $TMP/autoexec
+   echo "echo '### copy dtb to ram ###'" >> $TMP/autoexec
+   echo "echo 'fatload mmc 0 \${dtb_mem_addr} dream${MACHINE}.dtb'" >> $TMP/autoexec
+   echo "echo '### write dtb from ram to emmc ###'" >> $TMP/autoexec
+   echo "echo 'store dtb write \${dtb_mem_addr}'" >> $TMP/autoexec
+   echo "################ Bootloader RECOVERY #######################" >> $TMP/autoexec
+   echo "echo '### copy u-boot to ram ###'" >> $TMP/autoexec
+   echo "echo 'fatload mmc 0 \${loadaddr} u-boot.bin'" >> $TMP/autoexec
+   echo "echo '### write u-boot from ram to emmc ###'" >> $TMP/autoexec
+   echo "echo 'amlmmc write bootloader \${loadaddr} 0 \${filesize}'" >> $TMP/autoexec
+   echo "################ Rescue Image RECOVERY #####################" >> $TMP/autoexec
+   echo "echo '### copy rescue image to ram ###'" >> $TMP/autoexec
+   echo "echo 'fatload mmc 0 \${loadaddr} rescue.bootimg'" >> $TMP/autoexec
+   echo "echo '### write rescue image from ram to emmc ###'" >> $TMP/autoexec
+   echo "echo 'amlmmc write recovery \${loadaddr} 0 \${filesize}'" >> $TMP/autoexec
+   cat $TMP/autoexec
+   mkimage -A arm64 -O linux -T script -C none -n autoexec -d $TMP/autoexec $TMP/autoexec.img
+   rm $TMP/autoexec > /dev/null 2>&1
+   if [ -e $TMP/autoexec.img ]; then
+      info "Copying autoexec.img to Emergency SD"
+      cp $TMP/autoexec.img /tmp/DREAMBOOT/autoexec.img
+      rm $TMP/autoexec.img
+   else
+      abort "Creating emergency autoexec.img failed"
+   fi
+   showResult
+   doFinish
+   doCleanup
+}
+
+showResult() {
+   if [ `grep /dev/mmcblk1p1 /proc/mounts | grep /tmp/DREAMBOOT | wc -l` -gt 0 ]; then
+      info "List Content of FAT on sd-card"
+      ls -alh /tmp/DREAMBOOT
+   fi
+   if  [ -e /dev/mmcblk1 ]; then
+      info "List partitions on SD"
+      parted /dev/mmcblk1 print
+   fi
+}
+
+doFinish() {
+   sync
+   sync
+   doUmount
+}
+
+if $RESCUE; then
+   doRescue
+   info "Rescue SD created successfully. Remove before Reboot!"
+fi
+
+if $EMERGENCY; then
+   doEmergency
+   info "Emergency SD created successfully. Remove before Reboot!"
+fi
