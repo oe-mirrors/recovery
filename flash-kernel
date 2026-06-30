@@ -14,6 +14,34 @@ case "${MACHINE}" in
 		;;
 esac
 
+# Current active root partition.
+CURRENT_ROOT=$(readlink -f /dev/root 2>/dev/null)
+
+# SD-card boot: kernel image on SD-FAT (mmcblk1p1).
+# - auto-boot:      u-boot.bin + kernel.img      -> kernel.img
+# - multiboot slot: kernelN.img (N = partition)  -> kernelN.img
+SD_BOOT=false
+SD_KERNEL=""
+case "$CURRENT_ROOT" in
+	/dev/mmcblk1p*)
+		SDCHECK=$(mktemp -d)
+		if mount -t vfat -o ro /dev/mmcblk1p1 "$SDCHECK" 2>/dev/null; then
+			if [ -f "$SDCHECK/u-boot.bin" ] && [ -f "$SDCHECK/kernel.img" ]; then
+				SD_BOOT=true
+				SD_KERNEL="kernel.img"
+			else
+				PARTNUM="${CURRENT_ROOT##*p}"
+				if [ -f "$SDCHECK/kernel${PARTNUM}.img" ]; then
+					SD_BOOT=true
+					SD_KERNEL="kernel${PARTNUM}.img"
+				fi
+			fi
+			umount "$SDCHECK"
+		fi
+		rmdir "$SDCHECK"
+		;;
+esac
+
 create_blob()
 {
 	ARGS="-m ${MEM_SIZE} -o ${1}"
@@ -57,7 +85,12 @@ create_bootimg()
 		mkbootimg ${ARGS} >&3 2>&4
 	else
 		if is_gpt; then
-			CMDLINE=$(echo ${CMDLINE} | sed -e "s/mmcblk0p7/${CMDLINE_ROOTFS}/g")
+			TARGET_ROOT="${CURRENT_ROOT##*/}"
+			case "$TARGET_ROOT" in
+				mmcblk0p*|mmcblk1p*) ;;
+				*) TARGET_ROOT="${CMDLINE_ROOTFS}" ;;
+			esac
+			CMDLINE=$(echo ${CMDLINE} | sed -e "s/mmcblk0p7/${TARGET_ROOT}/g")
 		fi
 		info "Kernel command-line: ${CMDLINE}"
 		mkbootimg ${ARGS} --cmdline "${CMDLINE}" >&3 2>&4
@@ -121,8 +154,18 @@ is_writable_blockdev "${DEVICE}" || is_writable_chardev "${DEVICE}" || abort "Ta
 case "${MACHINE}" in
 	one|two|seven)
 		create_workspace
-		if is_gpt; then
+		if $SD_BOOT; then
+			create_bootimg "${SD_KERNEL}" || abort "Failed to create boot image"
+			mkdir -p sdfat
+			mount -t vfat /dev/mmcblk1p1 sdfat || abort "Failed to mount SD-FAT"
+			xcp "${SD_KERNEL}" "sdfat/${SD_KERNEL}"
+			sync
+			umount sdfat
+			rmdir sdfat
+			info "Kernel written to SD-FAT (/dev/mmcblk1p1/${SD_KERNEL})"
+		elif is_gpt; then
 			create_bootimg "/boot/kernel.img" || abort "Failed to create boot image"
+			info "Kernel written to GPT-Slot (/dev/${TARGET_ROOT}/boot/kernel.img)"
 		else
 			create_bootimg bootblob.bin || abort "Failed to create boot image"
 			is_file_size_le bootblob.bin "${KERNEL_SIZE}" || abort "Boot image is too big"
