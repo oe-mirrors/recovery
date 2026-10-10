@@ -84,7 +84,7 @@ create_bootimg()
 	if is_empty "${CMDLINE}"; then
 		mkbootimg ${ARGS} >&3 2>&4
 	else
-		if is_gpt; then
+		if $SD_BOOT || is_gpt; then
 			TARGET_ROOT="${CURRENT_ROOT##*/}"
 			case "$TARGET_ROOT" in
 				mmcblk0p*|mmcblk1p*) ;;
